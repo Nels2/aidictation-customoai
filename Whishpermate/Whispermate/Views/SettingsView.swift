@@ -419,32 +419,38 @@ struct SettingsView: View {
                 }
             }
 
-            // Word Usage Card (for all free users - authenticated or not)
-            if !isPro {
-                SettingsCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Word Usage")
-                                    .dsFont(.body)
-                                    .foregroundStyle(Color.dsForeground)
+            // Word Usage Card. Paid plans have nothing to meter, but the count
+            // is still the one number that says how much the app is used, so
+            // they see it without a limit, a bar, or a reset date.
+            SettingsCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Word Usage")
+                                .dsFont(.body)
+                                .foregroundStyle(Color.dsForeground)
 
-                                let (used, limit, _, _) = subscriptionManager.getUsageStatus()
-                                let remaining = max(0, limit - used)
+                            let (used, limit, _, _) = subscriptionManager.getUsageStatus()
+                            let remaining = max(0, limit - used)
 
-                                if remaining == 0 {
-                                    Text("You've used all \(limit) free words this month")
-                                        .dsFont(.label)
-                                        .foregroundStyle(Color.dsWarning)
-                                } else {
-                                    Text("\(used) of \(limit) words used this month")
-                                        .dsFont(.label)
-                                        .foregroundStyle(Color.dsMutedForeground)
-                                }
+                            if isPro {
+                                Text("\(used) words transcribed • Unlimited")
+                                    .dsFont(.label)
+                                    .foregroundStyle(Color.dsMutedForeground)
+                            } else if remaining == 0 {
+                                Text("You've used all \(limit) free words this month")
+                                    .dsFont(.label)
+                                    .foregroundStyle(Color.dsWarning)
+                            } else {
+                                Text("\(used) of \(limit) words used this month")
+                                    .dsFont(.label)
+                                    .foregroundStyle(Color.dsMutedForeground)
                             }
-                            Spacer()
                         }
+                        Spacer()
+                    }
 
+                    if !isPro {
                         // Progress bar
                         let (_, _, percentage, _) = subscriptionManager.getUsageStatus()
                         GeometryReader { geo in
