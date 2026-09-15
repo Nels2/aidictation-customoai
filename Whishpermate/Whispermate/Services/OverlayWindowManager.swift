@@ -29,11 +29,10 @@ enum OverlayPermissionIssue: Equatable {
 }
 
 enum OverlayPermissionCalloutMetrics {
-    /// Wide enough for the longest message plus the Set Up button. The
-    /// measured line is ~149pt ("Accessibility access is off"), and the icon,
-    /// three gaps, button, and padding take ~120pt more, so 250 clipped the
-    /// text to "Microphone access i...".
-    static let width: CGFloat = 290
+    /// Wide enough for the longest message plus both icons. The measured line
+    /// is ~149pt ("Accessibility access is off"), and the leading icon, the
+    /// trailing cog, the gaps, and the padding take ~70pt more.
+    static let width: CGFloat = 240
     static let height: CGFloat = 36
     static let spacing: CGFloat = 8
 }
@@ -432,10 +431,15 @@ class OverlayWindowManager: ObservableObject {
                 AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                     DispatchQueue.main.async {
                         guard let self else { return }
-                        if granted {
-                            self.initializeAudioObservers()
-                            self.refreshPermissionIssue()
+                        guard granted else {
+                            // A refused prompt never comes back on its own, so
+                            // the click still has to land somewhere the user
+                            // can act: the Settings pane.
+                            PrivacyPermissionFlowManager.shared.open(.microphone)
+                            return
                         }
+                        self.initializeAudioObservers()
+                        self.refreshPermissionIssue()
                     }
                 }
             case .denied, .restricted:

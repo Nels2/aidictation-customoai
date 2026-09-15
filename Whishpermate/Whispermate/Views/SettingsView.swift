@@ -1121,8 +1121,20 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.dsSecondary)
                         } else {
                             Button("Grant Access") {
+                                // macOS only ever prompts once. Once the answer
+                                // is on record, the button has to open the
+                                // Settings pane or it does nothing at all.
+                                guard AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined else {
+                                    PrivacyPermissionFlowManager.shared.open(.microphone)
+                                    return
+                                }
                                 Task {
-                                    await AVCaptureDevice.requestAccess(for: .audio)
+                                    let granted = await AVCaptureDevice.requestAccess(for: .audio)
+                                    if !granted {
+                                        await MainActor.run {
+                                            PrivacyPermissionFlowManager.shared.open(.microphone)
+                                        }
+                                    }
                                 }
                             }
                             .controlSize(.small)

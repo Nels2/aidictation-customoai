@@ -291,14 +291,13 @@ struct RecordingOverlayView: View {
 
             Spacer(minLength: 4)
 
-            Button("Set Up") {
-                updateHoverCursor(isActive: false)
-                manager.setUpPermission()
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .tint(Color.orange)
-            .accessibilityLabel("Set up \(issue.message.lowercased())")
+            // The cog says where the click lands: System Settings. The whole
+            // callout carries the gesture, so this stays a marker, not a
+            // second target that can be missed.
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.7))
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 10)
         .frame(
@@ -326,6 +325,7 @@ struct RecordingOverlayView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("\(issue.message). Open System Settings")
         .transition(.opacity.combined(with: .move(edge: .trailing)))
     }
 
