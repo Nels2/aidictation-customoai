@@ -57,19 +57,24 @@ struct HistoryMasterDetailView: View {
 
 private struct HistoryMasterDetailContentView: View {
     @ObservedObject private var historyManager = HistoryManager.shared
-    @State private var selectedRecording: Recording?
+    // Selection is held by id, not by value. Rows carry a content-derived
+    // .id() so they refresh when a recording changes, which means the row's
+    // view identity — and a value tag along with it — is replaced the moment a
+    // retry succeeds. The List then matches its selection against tags that no
+    // longer exist and drops it, stranding both panes on the old state.
+    @State private var selectedRecordingID: Recording.ID?
 
     var body: some View {
         NavigationSplitView {
             HistorySidebarView(
                 historyManager: historyManager,
-                selectedRecording: $selectedRecording
+                selectedRecordingID: $selectedRecordingID
             )
             .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 360)
         } detail: {
             HistoryDetailPane(
                 historyManager: historyManager,
-                selectedRecording: $selectedRecording
+                selectedRecordingID: $selectedRecordingID
             )
         }
         .navigationSplitViewStyle(.balanced)
@@ -77,7 +82,7 @@ private struct HistoryMasterDetailContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .recordingCompleted)) { notification in
             // Switch to detail view when recording is completed
             if let recording = notification.object as? Recording {
-                selectedRecording = recording
+                selectedRecordingID = recording.id
             }
         }
     }
@@ -86,12 +91,12 @@ private struct HistoryMasterDetailContentView: View {
 private struct HistoryDetailPane: View {
     @ObservedObject var historyManager: HistoryManager
     @ObservedObject private var appState = AppState.shared
-    @Binding var selectedRecording: Recording?
+    @Binding var selectedRecordingID: Recording.ID?
     @State private var operationError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if let selectedId = selectedRecording?.id,
+            if let selectedId = selectedRecordingID,
                let recording = historyManager.recordings.first(where: { $0.id == selectedId })
             {
                 RecordingDetailView(
@@ -130,7 +135,7 @@ private struct HistoryDetailPane: View {
     }
 
     private var detailTitle: String {
-        if let selectedId = selectedRecording?.id,
+        if let selectedId = selectedRecordingID,
            let recording = historyManager.recordings.first(where: { $0.id == selectedId })
         {
             return recording.formattedDate
@@ -144,11 +149,11 @@ private struct HistoryDetailPane: View {
             return
         }
 
-        let nextSelection: Recording?
+        let nextSelection: Recording.ID?
         if index < historyManager.recordings.count - 1 {
-            nextSelection = historyManager.recordings[index + 1]
+            nextSelection = historyManager.recordings[index + 1].id
         } else if index > 0 {
-            nextSelection = historyManager.recordings[index - 1]
+            nextSelection = historyManager.recordings[index - 1].id
         } else {
             nextSelection = nil
         }
@@ -157,7 +162,7 @@ private struct HistoryDetailPane: View {
             if let message = await appState.deleteRecording(recordingToDelete) {
                 operationError = message
             } else {
-                selectedRecording = nextSelection
+                selectedRecordingID = nextSelection
             }
         }
     }
@@ -167,7 +172,7 @@ private struct HistoryDetailPane: View {
 struct HistorySidebarView: View {
     @ObservedObject var historyManager: HistoryManager
     @ObservedObject private var appState = AppState.shared
-    @Binding var selectedRecording: Recording?
+    @Binding var selectedRecordingID: Recording.ID?
     @State private var searchText = ""
     @State private var operationError: String?
 
@@ -210,21 +215,21 @@ struct HistorySidebarView: View {
     }
 
     private var recordingsListContent: some View {
-        List(selection: $selectedRecording) {
+        List(selection: $selectedRecordingID) {
             ForEach(filteredRecordings) { recording in
                 HistorySidebarRow(recording: recording)
                     .id(recording.historyPresentationIdentity)
-                    .tag(recording)
+                    .tag(recording.id)
             }
         }
         .listStyle(.sidebar)
-        .onChange(of: selectedRecording) { _ in }
     }
 
     private var recordingsListWithSelectionContextMenu: some View {
         recordingsListContent
-            .contextMenu(forSelectionType: Recording.self) { recordings in
-                if let recording = recordings.first {
+            .contextMenu(forSelectionType: Recording.ID.self) { recordingIDs in
+                if let recordingID = recordingIDs.first,
+                   let recording = historyManager.recordings.first(where: { $0.id == recordingID }) {
                     Button {
                         copyTranscription(recording)
                     } label: {
@@ -272,24 +277,24 @@ struct HistorySidebarView: View {
     }
 
     private func deleteRecording(_ recording: Recording) {
-        let nextSelection: Recording?
+        let nextSelection: Recording.ID?
         if let index = historyManager.recordings.firstIndex(where: { $0.id == recording.id }) {
             if index < historyManager.recordings.count - 1 {
-                nextSelection = historyManager.recordings[index + 1]
+                nextSelection = historyManager.recordings[index + 1].id
             } else if index > 0 {
-                nextSelection = historyManager.recordings[index - 1]
+                nextSelection = historyManager.recordings[index - 1].id
             } else {
                 nextSelection = nil
             }
         } else {
-            nextSelection = selectedRecording
+            nextSelection = selectedRecordingID
         }
 
         Task {
             if let message = await appState.deleteRecording(recording) {
                 operationError = message
-            } else if selectedRecording?.id == recording.id {
-                selectedRecording = nextSelection
+            } else if selectedRecordingID == recording.id {
+                selectedRecordingID = nextSelection
             }
         }
     }
