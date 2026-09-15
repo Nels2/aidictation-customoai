@@ -198,10 +198,41 @@ private struct SourceChangePinningValidator {
         let prepareMethod = extractMethod(named: "prepareCapture", from: recorderSource)
         let recoveryMethod = extractMethod(named: "rebuildCaptureEngine", from: recorderSource)
         try require(
-            prepareMethod.contains("let engine = AVAudioEngine()")
-                && prepareMethod.contains("let inputNode = engine.inputNode")
+            prepareMethod.contains("AVAudioEngine()")
+                && prepareMethod.contains("engine.inputNode")
                 && prepareMethod.contains("inputNode.outputFormat"),
             "prepareCapture must create AVAudioEngine() and use inputNode.outputFormat"
+        )
+        // prepareCapture may point the new unit at the resolved device before
+        // it starts: that is what survives a destroyed aggregate device, which
+        // a display unplug leaves behind. What killed built-in IO units in
+        // 0.0.116 and was reverted in #112 is the machinery around it — a
+        // kAudioDevicePropertyDataSource snapshot restored *after*
+        // engine.start(), and jack listeners retargeting a live graph. The
+        // assertions below keep that machinery out; the bind itself is not the
+        // regression, and recovery still falls back to the unbound default
+        // input (rebuildCaptureEngine, asserted next).
+        try require(
+            !recorderSource.contains("kAudioDevicePropertyDataSource"),
+            "AudioRecorder must not snapshot or restore a HAL input data source"
+        )
+        try require(
+            !recorderSource.contains("kAudioDevicePropertyJackIsConnected"),
+            "AudioRecorder must not listen for jack changes during capture"
+        )
+        if let bindCall = prepareMethod.range(of: "bindInputDevice"),
+           let startCall = prepareMethod.range(of: "engine.start()") {
+            try require(
+                bindCall.lowerBound < startCall.lowerBound,
+                "the device bind must happen before engine.start(), never after it"
+            )
+        }
+        let bindHelper = extractMethod(named: "bindInputDevice", from: recorderSource)
+        try require(
+            !bindHelper.isEmpty
+                && !bindHelper.contains("start()")
+                && !bindHelper.contains("installTap"),
+            "the device bind must only set the unit's device, never touch a running graph"
         )
         try require(
             recoveryMethod.contains("let engine = AVAudioEngine()")
