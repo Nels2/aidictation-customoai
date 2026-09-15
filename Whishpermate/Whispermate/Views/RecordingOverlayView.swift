@@ -196,17 +196,18 @@ struct RecordingOverlayView: View {
     private func overlayContent(geometry _: GeometryProxy) -> some View {
         Group {
             if let permissionIssue = manager.permissionIssue {
-                HStack(spacing: OverlayPermissionCalloutMetrics.spacing) {
-                    Color.clear
-                        .frame(
-                            width: OverlayPermissionCalloutMetrics.width,
-                            height: OverlayPermissionCalloutMetrics.height
-                        )
-                        .allowsHitTesting(false)
-
-                    contentView
-
-                    permissionCallout(permissionIssue)
+                // Stack the callout away from the screen edge the pill hugs:
+                // above a bottom overlay, below a top one. Beside the pill it
+                // competed with the pill for one row's width, which is what
+                // clipped the message.
+                VStack(spacing: OverlayPermissionCalloutMetrics.spacing) {
+                    if manager.position == .bottom {
+                        permissionCallout(permissionIssue)
+                        contentView
+                    } else {
+                        contentView
+                        permissionCallout(permissionIssue)
+                    }
                 }
             } else {
                 contentView

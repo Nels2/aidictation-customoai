@@ -641,12 +641,14 @@ class OverlayWindowManager: ObservableObject {
             DebugLog.warning("positionStage skipped: window or target screen missing", context: "OverlayWindowManager")
             return
         }
+        // The callout stacks above/below the pill, so it costs a row of height
+        // rather than two columns of width.
         let stageWidth = permissionIssue == nil
             ? Constants.stageWidth
-            : Constants.stageWidth + 2 * (OverlayPermissionCalloutMetrics.width + OverlayPermissionCalloutMetrics.spacing)
+            : max(Constants.stageWidth, OverlayPermissionCalloutMetrics.width + (Constants.edgeMargin * 2))
         let stageHeight = permissionIssue == nil
             ? Constants.stageHeight
-            : max(Constants.stageHeight, OverlayPermissionCalloutMetrics.height + (Constants.edgeMargin * 2))
+            : Constants.stageHeight + OverlayPermissionCalloutMetrics.height + OverlayPermissionCalloutMetrics.spacing
         let (xPos, yPos) = calculatePosition(
             for: position,
             screenFrame: screen.visibleFrame,
