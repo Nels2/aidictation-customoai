@@ -2329,7 +2329,11 @@ class AppState: ObservableObject {
         success.audioFileURL = store.finalURL(for: recording.id)
         success.transcription = trimmed
         success.status = .success
-        success.errorMessage = storeRecord.failureMessage
+        // A transcript that arrived is not a failure. The durable record can
+        // still be carrying the message from the attempt this retry replaced —
+        // restart reconciliation deliberately preserves it — and copying that
+        // onto the success left the row looking broken after it had recovered.
+        success.errorMessage = nil
         success.wordCount = trimmed.split(separator: " ").count
         success.sourceIntegrity = .complete
         let usageWordCount = success.wordCount ?? 0
