@@ -208,7 +208,7 @@ actor MacAudioProcessingStore {
             case .storageUnavailable:
                 return "The recording could not be saved. Your existing files were not changed."
             case .persistenceBusy:
-                return "Saving is still busy. Please try again."
+                return "The previous recording is still saving. Please try again."
             case .persistenceTimedOut:
                 return "Saving took too long. The available audio was kept."
             case .writerStillOpen:
@@ -272,6 +272,9 @@ actor MacAudioProcessingStore {
             records: []
         )
     }
+
+    /// How often a waiting caller re-checks for an in-flight commit.
+    private static let persistenceIdlePollNanoseconds: UInt64 = 15_000_000
 
     private var journal: Journal
     private var health: Health
@@ -495,6 +498,12 @@ actor MacAudioProcessingStore {
     /// Persists the stable recording identity before creating the source file.
     /// The returned lease is the only owner allowed to advance this attempt.
     func prepare(recordingID: UUID, attemptID: UUID, deadline: Date) async throws -> Mutation {
+        // A finalize from the previous dictation is often still committing when
+        // the next key press lands. Queue behind it instead of turning a normal
+        // background save into a failed recording the user has to retry.
+        try await awaitPersistenceIdle(
+            deadline: min(deadline, testHooks.now().addingTimeInterval(testHooks.persistenceTimeout))
+        )
         try requireWritable()
         guard recordingID != attemptID else { throw StoreError.invalidIdentity }
         guard deadline > testHooks.now() else { throw StoreError.invalidDeadline }
@@ -1739,6 +1748,17 @@ actor MacAudioProcessingStore {
 
     private func index(of recordingID: UUID) -> Int? {
         journal.records.firstIndex { $0.recordingID == recordingID }
+    }
+
+    /// Suspends until no commit is in flight, so a caller that can afford to
+    /// wait does not surface `persistenceBusy` to the user. Polling keeps the
+    /// actor reentrant while the in-flight commit finishes its own awaits.
+    private func awaitPersistenceIdle(deadline: Date) async throws {
+        while persistenceOperationID != nil {
+            guard testHooks.now() < deadline else { throw StoreError.persistenceBusy }
+            try? await Task.sleep(nanoseconds: Self.persistenceIdlePollNanoseconds)
+            try Task.checkCancellation()
+        }
     }
 
     private func requireWritable() throws {
