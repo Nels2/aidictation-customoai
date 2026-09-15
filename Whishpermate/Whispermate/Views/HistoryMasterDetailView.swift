@@ -405,7 +405,7 @@ struct RecordingDetailView: View {
                             .foregroundStyle(.secondary)
                     } else if recording.status == .failed {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Transcription stopped")
+                            Label("Transcription stopped", systemImage: "exclamationmark.triangle.fill")
                                 .dsFont(.headline)
                                 .foregroundStyle(Color.dsWarning)
                             if let errorMessage = recording.errorMessage {
@@ -458,11 +458,9 @@ struct RecordingDetailView: View {
         .toolbar {
             // All action buttons grouped together
             ToolbarItemGroup(placement: .automatic) {
-                // Status indicator for failed recordings
-                if recording.status == .failed {
-                    Label("Failed", systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(Color.dsWarning)
-                }
+                // Failure state lives with the transcription text, not here: a
+                // toolbar group is a row of controls, and a status icon sitting
+                // among them reads as a button that does nothing when clicked.
 
                 // Play button
                 Button(action: togglePlayback) {
