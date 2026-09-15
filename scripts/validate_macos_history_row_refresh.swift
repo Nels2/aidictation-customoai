@@ -80,13 +80,25 @@ private enum HistoryRowRefreshValidator {
             ),
             encoding: .utf8
         )
-        let integrationCount = historyViewSource
+        // The sidebar and the detail pane must both be keyed on the identity,
+        // but they need different mechanisms. AppKit's List diffs rows on
+        // ForEach identity and reuses the cached row view otherwise, so an
+        // .id() modifier inside the row does not reliably refresh a selected
+        // row; the sidebar therefore carries the identity on ForEach itself.
+        try require(
+            historyViewSource.contains(
+                "ForEach(filteredRecordings, id: \\.historyPresentationIdentity)"
+            ),
+            "the History sidebar must key its ForEach on the deterministic identity"
+        )
+
+        let detailIntegrationCount = historyViewSource
             .components(separatedBy: ".id(recording.historyPresentationIdentity)")
             .count - 1
 
         try require(
-            integrationCount == 2,
-            "the deterministic identity must guard both History sidebar and detail content"
+            detailIntegrationCount == 1,
+            "the History detail pane must guard its content with the deterministic identity"
         )
         try require(
             !historyViewSource.contains("hashValue"),

@@ -216,10 +216,17 @@ struct HistorySidebarView: View {
 
     private var recordingsListContent: some View {
         List(selection: $selectedRecordingID) {
-            ForEach(filteredRecordings) { recording in
-                HistorySidebarRow(recording: recording)
-                    .id(recording.historyPresentationIdentity)
-                    .tag(recording.id)
+            // The content identity belongs on ForEach, not on a modifier inside
+            // the row. AppKit's List diffs on ForEach identity and reuses the
+            // cached row view otherwise — which is why a selected row kept
+            // rendering its old failed state after a retry had succeeded, while
+            // unselected rows happened to refresh.
+            ForEach(filteredRecordings, id: \.historyPresentationIdentity) { recording in
+                HistorySidebarRow(
+                    recording: recording,
+                    isSelected: recording.id == selectedRecordingID
+                )
+                .tag(recording.id)
             }
         }
         .listStyle(.sidebar)
@@ -314,6 +321,14 @@ private extension Recording {
 /// Compact row in sidebar
 struct HistorySidebarRow: View {
     let recording: Recording
+    var isSelected: Bool = false
+
+    /// The warning tint is unreadable on the selection fill, which is the same
+    /// family of orange. Selected rows draw the failure in the selection's own
+    /// foreground colour instead.
+    private var warningStyle: Color {
+        isSelected ? Color.white : Color.dsWarning
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -330,11 +345,11 @@ struct HistorySidebarRow: View {
                     .foregroundStyle(.secondary)
             } else if recording.status == .failed {
                 Label("Transcription stopped", systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Color.dsWarning)
+                    .foregroundStyle(warningStyle)
                 if let errorMessage = recording.errorMessage {
                     Text(errorMessage)
                         .dsFont(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isSelected ? AnyShapeStyle(Color.white.opacity(0.85)) : AnyShapeStyle(.secondary))
                         .lineLimit(2)
                 }
                 if let transcription = recording.transcription {
