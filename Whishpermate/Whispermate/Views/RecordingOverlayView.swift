@@ -284,6 +284,9 @@ struct RecordingOverlayView: View {
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
+                .minimumScaleFactor(0.85)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
 
             Spacer(minLength: 4)
 

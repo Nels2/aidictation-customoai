@@ -29,7 +29,11 @@ enum OverlayPermissionIssue: Equatable {
 }
 
 enum OverlayPermissionCalloutMetrics {
-    static let width: CGFloat = 250
+    /// Wide enough for the longest message plus the Set Up button. The
+    /// measured line is ~149pt ("Accessibility access is off"), and the icon,
+    /// three gaps, button, and padding take ~120pt more, so 250 clipped the
+    /// text to "Microphone access i...".
+    static let width: CGFloat = 290
     static let height: CGFloat = 36
     static let spacing: CGFloat = 8
 }
