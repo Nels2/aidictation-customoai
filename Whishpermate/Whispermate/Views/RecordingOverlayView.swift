@@ -314,6 +314,18 @@ struct RecordingOverlayView: View {
                 }
         }
         .shadow(color: .black.opacity(0.16), radius: 5, y: 2)
+        // The whole callout is the target, not just the button: the message is
+        // what the user reads and reaches for.
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onTapGesture {
+            updateHoverCursor(isActive: false)
+            manager.setUpPermission()
+        }
+        .onHover { hovering in
+            updateHoverCursor(isActive: hovering)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
         .transition(.opacity.combined(with: .move(edge: .trailing)))
     }
 

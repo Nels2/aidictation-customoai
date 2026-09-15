@@ -126,6 +126,9 @@ class OverlayWindowManager: ObservableObject {
         static let stageHeight: CGFloat =
             activeStateHeight + (verticalPaddingActive * 2) + (edgeMargin * 2)
         static let hoverCollapseResizeDelay: TimeInterval = 0.18
+        /// The permission callout is a nudge, not a banner to dismiss. It
+        /// hides itself and comes back on the next blocked recording.
+        static let permissionCalloutVisibleDuration: TimeInterval = 8
     }
 
     // MARK: - Published Properties (derived from overlayState for view compatibility)
@@ -244,6 +247,7 @@ class OverlayWindowManager: ObservableObject {
     private var frequencyBandsCancellable: AnyCancellable?
     private var suppressHoverExpansionUntilMouseExit = false
     private var keepIdleVisibleAfterCollapse = false
+    private var permissionCalloutHideWorkItem: DispatchWorkItem?
 
     // MARK: - Initialization
 
@@ -452,14 +456,31 @@ class OverlayWindowManager: ObservableObject {
         }
     }
 
+    /// Retires the callout on its own after a few seconds. The permission is
+    /// still missing, so the next blocked recording shows it again.
+    private func schedulePermissionCalloutHide() {
+        permissionCalloutHideWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.permissionIssue != nil else { return }
+            self.clearPermissionIssue()
+        }
+        permissionCalloutHideWorkItem = workItem
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Constants.permissionCalloutVisibleDuration,
+            execute: workItem
+        )
+    }
+
     private func showPermissionIssue(_ issue: OverlayPermissionIssue) {
         guard permissionIssue != issue else {
             ensureWindowExists()
             overlayWindow?.orderFrontRegardless()
+            schedulePermissionCalloutHide()
             return
         }
 
         permissionIssue = issue
+        schedulePermissionCalloutHide()
         hoverCollapseResizeWorkItem?.cancel()
         keepIdleVisibleAfterCollapse = true
         ensureWindowExists()
@@ -469,7 +490,10 @@ class OverlayWindowManager: ObservableObject {
 
     private func clearPermissionIssue() {
         guard permissionIssue != nil else { return }
+        permissionCalloutHideWorkItem?.cancel()
+        permissionCalloutHideWorkItem = nil
         permissionIssue = nil
+        keepIdleVisibleAfterCollapse = false
         positionStage()
         if overlayState == .idle, hideIdleState {
             overlayWindow?.orderOut(nil)
