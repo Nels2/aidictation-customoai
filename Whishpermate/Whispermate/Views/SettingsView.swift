@@ -34,7 +34,6 @@ struct SettingsCard<Content: View>: View {
 enum SettingsSection: String, CaseIterable, Identifiable {
     case general = "General"
     case overlay = "Overlay"
-    case account = "Account"
     case permissions = "Permissions"
     case transcription = "Transcription"
     case audio = "Sound"
@@ -46,9 +45,10 @@ enum SettingsSection: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Sections visible in the sidebar list (Account is accessed via bottom status view)
+    /// Sections visible in the sidebar list. Account details live inside
+    /// General; the sidebar status view jumps there.
     static var sidebarCases: [SettingsSection] {
-        allCases.filter { $0 != .account }
+        allCases
     }
 
     /// A sidebar group, in the order Finder uses: a few ungrouped rows at the
@@ -85,7 +85,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "gear"
         case .overlay: return "rectangle.bottomthird.inset.filled"
-        case .account: return "person.circle"
         case .history: return "clock.arrow.circlepath"
         case .permissions: return "lock.shield"
         case .transcription: return "text.bubble"
@@ -102,7 +101,6 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         switch self {
         case .general: return "Hotkey, transcription, and app settings"
         case .overlay: return "Recording indicator appearance"
-        case .account: return "Subscription and account management"
         case .history: return "View and manage transcription history"
         case .permissions: return "Microphone, accessibility, and screen recording"
         case .transcription: return "Cloud service, model, and cleanup settings"
@@ -305,7 +303,7 @@ struct SettingsView: View {
             Divider()
 
             SidebarAccountStatusView(onTap: {
-                selectedSection = .account
+                selectedSection = .general
             })
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -331,8 +329,6 @@ struct SettingsView: View {
                 generalSection
             case .overlay:
                 overlaySection
-            case .account:
-                accountSection
             case .history:
                 EmptyView()
             case .permissions:
@@ -369,7 +365,7 @@ struct SettingsView: View {
                         // Email
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Account")
+                                Text("Signed in as")
                                     .dsFont(.body)
                                     .foregroundStyle(Color.dsForeground)
                                 Text(user.email)
@@ -404,7 +400,7 @@ struct SettingsView: View {
                         // Not signed in
                         HStack(spacing: 12) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Account")
+                                Text("Not signed in")
                                     .dsFont(.body)
                                     .foregroundStyle(Color.dsForeground)
                                 Text("Sign up to upgrade to unlimited")
@@ -810,6 +806,10 @@ struct SettingsView: View {
 
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            groupHeader("Account")
+
+            accountSection
+
             groupHeader("Hotkey")
 
             // Recording Hotkey Settings Group

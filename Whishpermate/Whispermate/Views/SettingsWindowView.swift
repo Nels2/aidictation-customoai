@@ -35,8 +35,8 @@ struct SettingsWindowView: View {
             WindowBridge.openWindow?("onboarding")
         }
         .onReceive(NotificationCenter.default.publisher(for: .openAccountSettings)) { _ in
-            // Navigate to Account section and show window
-            selectedSection = .account
+            // Account details live in General now.
+            selectedSection = .general
             showMainSettingsWindow()
         }
     }
