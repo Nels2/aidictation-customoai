@@ -24,7 +24,6 @@ struct SettingsWindowView: View {
             shortcutManager: shortcutManager,
             selectedSection: $selectedSection
         )
-        .navigationTitle(selectedSection.rawValue)
         .onReceive(NotificationCenter.default.publisher(for: .showOnboarding)) { _ in
             // Close existing onboarding window if open
             if let window = NSApplication.shared.windows.first(where: { $0.identifier == WindowIdentifiers.onboarding }) {

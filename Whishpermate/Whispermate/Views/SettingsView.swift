@@ -196,8 +196,12 @@ struct SettingsView: View {
         NavigationSplitView {
             modernSettingsSidebar
                 .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
+                .modifier(RemoveSidebarToggle())
         } detail: {
+            // Title belongs to the detail column, as in System Settings; set on
+            // the window it lands above the sidebar instead.
             settingsDetail
+                .navigationTitle(selectedSection.rawValue)
         }
         .navigationSplitViewStyle(.balanced)
     }
@@ -1787,4 +1791,15 @@ struct SidebarAccountStatusView: View {
     }
 
     return PreviewWrapper()
+}
+
+/// System Settings keeps its sidebar fixed; hide the collapse button.
+private struct RemoveSidebarToggle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content.toolbar(removing: .sidebarToggle)
+        } else {
+            content
+        }
+    }
 }
