@@ -509,6 +509,7 @@ struct RecordingOverlayView: View {
             updateHoverCursor(isActive: hovering)
         }
         .animation(.easeInOut(duration: 0.12), value: isCancelButtonHovering)
+        .help("Cancel recording")
         .accessibilityLabel("Cancel recording")
     }
 
@@ -531,6 +532,7 @@ struct RecordingOverlayView: View {
             updateHoverCursor(isActive: hovering)
         }
         .animation(.easeInOut(duration: 0.12), value: isStopButtonHovering)
+        .help("Stop recording")
         .accessibilityLabel("Stop recording")
     }
 
@@ -663,6 +665,7 @@ private struct OverlayIdleControlButton: View {
             onHover(hovering)
         }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
+        .help(accessibilityLabel)
         .accessibilityLabel(accessibilityLabel)
     }
 }
