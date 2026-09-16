@@ -322,7 +322,14 @@ struct SettingsView: View {
     private func sidebarLabel(for section: SettingsSection) -> some View {
         // Plain SF Symbol, rendered by .listStyle(.sidebar) itself: secondary
         // when idle, accent-tinted when selected — the Finder/Mail treatment.
-        Label(section.rawValue, systemImage: section.icon)
+        // Neutral icons: the app's orange accent on the grey glass sidebar
+        // clashes, so icons stay secondary like Finder with a graphite accent.
+        Label {
+            Text(section.rawValue)
+        } icon: {
+            Image(systemName: section.icon)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private var settingsDetailContent: some View {
