@@ -10,7 +10,7 @@ import SwiftUI
 import WhisperMateShared
 
 private enum AppWindowDefaults {
-    static let mainFrameSize = NSSize(width: 900, height: 650)
+    static let mainFrameSize = NSSize(width: 900, height: 760)
     static let historyFrameSize = NSSize(width: 900, height: 600)
     static let onboardingFrameSize = NSSize(width: 1100, height: 724)
 
