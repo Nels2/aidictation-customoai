@@ -48,7 +48,9 @@ enum OverlayColorTheme: String, CaseIterable, Codable {
     case green = "Green"
     case purple = "Purple"
     case pink = "Pink"
+    case red = "Red"
     case graphite = "Graphite"
+    case black = "Black"
 
     var displayName: String {
         switch self {
@@ -57,7 +59,9 @@ enum OverlayColorTheme: String, CaseIterable, Codable {
         case .green: return "Green"
         case .purple: return "Purple"
         case .pink: return "Pink"
+        case .red: return "Red"
         case .graphite: return "Graphite"
+        case .black: return "Black"
         }
     }
 
@@ -68,7 +72,9 @@ enum OverlayColorTheme: String, CaseIterable, Codable {
         case .green: return .green
         case .purple: return .purple
         case .pink: return .pink
+        case .red: return .red
         case .graphite: return Color(nsColor: .darkGray)
+        case .black: return .black
         }
     }
 }
