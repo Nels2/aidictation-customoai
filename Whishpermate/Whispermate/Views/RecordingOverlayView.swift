@@ -509,7 +509,7 @@ struct RecordingOverlayView: View {
             updateHoverCursor(isActive: hovering)
         }
         .animation(.easeInOut(duration: 0.12), value: isCancelButtonHovering)
-        .help("Cancel recording")
+        .overlayHoverTitle("Cancel recording", isHovering: isCancelButtonHovering)
         .accessibilityLabel("Cancel recording")
     }
 
@@ -532,7 +532,7 @@ struct RecordingOverlayView: View {
             updateHoverCursor(isActive: hovering)
         }
         .animation(.easeInOut(duration: 0.12), value: isStopButtonHovering)
-        .help("Stop recording")
+        .overlayHoverTitle("Stop recording", isHovering: isStopButtonHovering)
         .accessibilityLabel("Stop recording")
     }
 
@@ -665,7 +665,7 @@ private struct OverlayIdleControlButton: View {
             onHover(hovering)
         }
         .animation(.easeInOut(duration: 0.12), value: isHovering)
-        .help(accessibilityLabel)
+        .overlayHoverTitle(accessibilityLabel, isHovering: isHovering)
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -769,4 +769,27 @@ private struct OverlayLoadingDotsView: View {
     manager.isProcessing = false
     return RecordingOverlayView(manager: manager)
         .frame(width: 400, height: 200)
+}
+
+private extension View {
+    /// Draws the button's title in a separate panel while hovered; see
+    /// OverlayWindowManager.showHoverTitle for why .help() can't be used.
+    func overlayHoverTitle(_ title: String, isHovering: Bool) -> some View {
+        background(
+            GeometryReader { proxy in
+                let frame = proxy.frame(in: .global)
+                Color.clear
+                    .onChange(of: isHovering) { hovering in
+                        if hovering {
+                            OverlayWindowManager.shared.showHoverTitle(title, buttonFrame: frame)
+                        } else {
+                            OverlayWindowManager.shared.hideHoverTitle()
+                        }
+                    }
+                    .onDisappear {
+                        if isHovering { OverlayWindowManager.shared.hideHoverTitle() }
+                    }
+            }
+        )
+    }
 }

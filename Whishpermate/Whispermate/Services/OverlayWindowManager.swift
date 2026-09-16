@@ -117,6 +117,7 @@ class OverlayWindowManager: ObservableObject {
         static let verticalPaddingActive: CGFloat = 4.5 * overlayScale
         static let verticalPaddingIdle: CGFloat = 3
         static let windowSafetyPadding: CGFloat = 10
+        static let hoverTitleGap: CGFloat = 6
         static let hoverFrameInset: CGFloat = 4 * overlayScale
         static let frequencyBandCount: Int = 10
         /// The window is one fixed transparent stage sized for the widest state;
@@ -238,6 +239,7 @@ class OverlayWindowManager: ObservableObject {
     // MARK: - Private Properties
 
     private var overlayWindow: NSWindow?
+    private var hoverTitleWindow: NSPanel?
     private var screenChangeObserver: Any?
     private var spaceChangeObserver: Any?
     private var appActivationObserver: Any?
@@ -279,6 +281,7 @@ class OverlayWindowManager: ObservableObject {
         createWindow()
         positionStage()
         overlayWindow?.orderOut(nil)
+        hideHoverTitle()
     }
 
     func show() {
@@ -303,6 +306,7 @@ class OverlayWindowManager: ObservableObject {
         DebugLog.info("hide() called, overlayState=\(overlayState)", context: "OverlayWindowManager")
         logWindowState("hide-before")
         overlayWindow?.orderOut(nil)
+        hideHoverTitle()
         logWindowState("hide-after-orderOut")
     }
 
@@ -346,6 +350,7 @@ class OverlayWindowManager: ObservableObject {
             isCommandMode = false
             showsRecordingControls = false
             overlayWindow?.orderOut(nil)
+        hideHoverTitle()
             DebugLog.info("transition: window hidden", context: "OverlayWindowManager")
 
         case .idle:
@@ -507,6 +512,7 @@ class OverlayWindowManager: ObservableObject {
         positionStage()
         if overlayState == .idle, hideIdleState {
             overlayWindow?.orderOut(nil)
+        hideHoverTitle()
         }
     }
 
@@ -531,6 +537,46 @@ class OverlayWindowManager: ObservableObject {
             DebugLog.info("ensureWindowExists: creating window", context: "OverlayWindowManager")
             createWindow()
         }
+    }
+
+    // MARK: - Hover Titles
+
+    /// Shows a small title next to an overlay button. System tooltips never
+    /// appear here: they need the owning app to be active, and the overlay is
+    /// built to never activate it. `buttonFrame` is in the overlay window's
+    /// SwiftUI global space (top-left origin).
+    func showHoverTitle(_ title: String, buttonFrame: CGRect) {
+        guard let overlay = overlayWindow, overlay.isVisible else { return }
+
+        let label = Text(title)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.black.opacity(0.86))
+                    .overlay(Capsule(style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 0.75))
+            )
+            .fixedSize()
+        let host = NSHostingView(rootView: label)
+        let size = host.fittingSize
+
+        let panel = hoverTitleWindow ?? makeHoverTitleWindow()
+        panel.contentView = host
+
+        let buttonTop = overlay.frame.maxY - buttonFrame.minY
+        let buttonBottom = overlay.frame.maxY - buttonFrame.maxY
+        let x = overlay.frame.minX + buttonFrame.midX - size.width / 2
+        let y = position == .bottom
+            ? buttonTop + Constants.hoverTitleGap
+            : buttonBottom - Constants.hoverTitleGap - size.height
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        panel.orderFrontRegardless()
+    }
+
+    func hideHoverTitle() {
+        hoverTitleWindow?.orderOut(nil)
     }
 
     // MARK: - Legacy API (for backward compatibility during migration)
@@ -633,10 +679,28 @@ class OverlayWindowManager: ObservableObject {
         keepIdleVisibleAfterCollapse = false
         if shouldHideIdle {
             overlayWindow?.orderOut(nil)
+        hideHoverTitle()
         }
     }
 
     // MARK: - Private Methods
+
+    private func makeHoverTitleWindow() -> NSPanel {
+        let panel = NonActivatingWindow(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 4)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]
+        hoverTitleWindow = panel
+        return panel
+    }
 
     private func formatRect(_ rect: NSRect) -> String {
         "x=\(Int(rect.origin.x)) y=\(Int(rect.origin.y)) w=\(Int(rect.width)) h=\(Int(rect.height))"
