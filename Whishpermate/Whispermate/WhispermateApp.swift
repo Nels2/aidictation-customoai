@@ -306,7 +306,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         // Minimal configuration; keep the native title bar controls visible.
-        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable])
+        window.styleMask.formUnion([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
         applyWindowChrome(window)
@@ -725,12 +725,17 @@ enum WindowBridge {
     private static func makeWindow(id: NSUserInterfaceItemIdentifier, title: String, size: NSSize, rootView: AnyView) -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: size),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.identifier = id
         window.title = title
+        // Match a SwiftUI Window scene: a unified toolbar over full-height
+        // columns, so a NavigationSplitView puts the title over its detail
+        // column instead of beside the traffic lights.
+        window.toolbar = NSToolbar()
+        window.toolbarStyle = .unified
         applyWindowChrome(window)
         window.contentViewController = NSHostingController(rootView: rootView)
         AppWindowDefaults.setFrameSize(size, for: window)
