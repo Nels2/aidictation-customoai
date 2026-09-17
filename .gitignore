@@ -63,3 +63,4 @@ notarize*.json
 # Local agent/runtime state
 .omx/
 .kotlin/
+chatbot_memory.md
