@@ -779,7 +779,7 @@ public partial class App : Application
 
         if (AuthService.Instance.CurrentUser?.HasReachedLimit == true)
         {
-            AppState.Shared.SetError("Monthly word limit reached. Upgrade to keep dictating.");
+            AppState.Shared.SetError("You've dictated 5,000 words. Unlimited is $8.49/month or $84.99/year.");
             return;
         }
 

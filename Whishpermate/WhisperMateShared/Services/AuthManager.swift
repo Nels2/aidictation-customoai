@@ -717,7 +717,7 @@ public class AuthManager: ObservableObject {
         }
 
         if user.hasReachedLimit {
-            return (false, "You've reached your word limit. Upgrade to Pro for unlimited transcriptions.")
+            return (false, "You've dictated 5,000 words. Unlimited is $8.49/month or $84.99/year.")
         }
 
         return (true, nil)

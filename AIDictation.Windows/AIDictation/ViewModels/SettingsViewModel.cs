@@ -575,7 +575,7 @@ public partial class SettingsViewModel : ObservableObject
             var limit = user.SubscriptionTier.GetWordLimit();
             if (limit == int.MaxValue)
             {
-                UsageText = $"{user.MonthlyWordCount:N0} words this month";
+                UsageText = $"{user.MonthlyWordCount:N0} words transcribed";
                 UsagePercent = 0;
             }
             else
@@ -584,9 +584,7 @@ public partial class SettingsViewModel : ObservableObject
                 UsagePercent = Math.Clamp((double)user.MonthlyWordCount / limit, 0, 1);
             }
 
-            UsageResetText = user.WordCountResetAt != null
-                ? $"Resets {user.WordCountResetAt:MMMM d}"
-                : "Monthly words";
+            UsageResetText = limit == int.MaxValue ? "Unlimited" : "One-time free trial";
         }
         else
         {

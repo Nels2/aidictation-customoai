@@ -1,9 +1,9 @@
 package com.whispermate.aidictation.domain.model
 
-const val FREE_MONTHLY_WORD_LIMIT = 2_000
+const val FREE_TRIAL_WORD_LIMIT = 5_000
 
 /** A Stripe payment link the app can open; each maps to one STRIPE_PAYMENT_LINK_* build value. */
-enum class PaymentPlan { Monthly, Annual, Lifetime }
+enum class PaymentPlan { Monthly, Annual }
 const val REFERRAL_BONUS_WORDS = 2_000
 
 enum class SubscriptionTier {
@@ -15,11 +15,11 @@ enum class SubscriptionTier {
         get() = this == Pro || this == Lifetime
 
     val wordLimit: Int
-        get() = if (isPaid) Int.MAX_VALUE else FREE_MONTHLY_WORD_LIMIT
+        get() = if (isPaid) Int.MAX_VALUE else FREE_TRIAL_WORD_LIMIT
 
     val displayName: String
         get() = when (this) {
-            Free -> "Free"
+            Free -> "Free Trial"
             Pro -> "Pro"
             Lifetime -> "Lifetime"
         }
@@ -49,7 +49,7 @@ data class UserProfile(
         get() = SubscriptionTier.fromStatus(subscriptionStatus)
 
     val effectiveWordLimit: Int
-        get() = if (subscriptionTier.isPaid) Int.MAX_VALUE else FREE_MONTHLY_WORD_LIMIT + referralBonusWords.coerceAtLeast(0)
+        get() = if (subscriptionTier.isPaid) Int.MAX_VALUE else FREE_TRIAL_WORD_LIMIT + referralBonusWords.coerceAtLeast(0)
 
     val hasReachedLimit: Boolean
         get() = !subscriptionTier.isPaid && monthlyWordCount >= effectiveWordLimit

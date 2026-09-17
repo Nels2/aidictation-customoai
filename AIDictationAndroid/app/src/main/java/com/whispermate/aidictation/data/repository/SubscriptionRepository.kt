@@ -6,7 +6,7 @@ import android.content.Intent
 import android.util.Log
 import com.whispermate.aidictation.BuildConfig
 import com.whispermate.aidictation.data.preferences.AppPreferences
-import com.whispermate.aidictation.domain.model.FREE_MONTHLY_WORD_LIMIT
+import com.whispermate.aidictation.domain.model.FREE_TRIAL_WORD_LIMIT
 import com.whispermate.aidictation.domain.model.REFERRAL_BONUS_WORDS
 import com.whispermate.aidictation.domain.model.UsageClaimDestination
 import com.whispermate.aidictation.domain.model.UsageStatus
@@ -44,7 +44,7 @@ class SubscriptionRepository @Inject constructor(
         if (user == null) {
             UsageStatus(
                 used = localUsage.wordCount,
-                limit = FREE_MONTHLY_WORD_LIMIT,
+                limit = FREE_TRIAL_WORD_LIMIT,
                 isPro = false,
                 isAuthenticated = false
             )
@@ -67,7 +67,7 @@ class SubscriptionRepository @Inject constructor(
         started = SharingStarted.Eagerly,
         initialValue = UsageStatus(
             used = 0,
-            limit = FREE_MONTHLY_WORD_LIMIT,
+            limit = FREE_TRIAL_WORD_LIMIT,
             isPro = false,
             isAuthenticated = false
         )
@@ -75,7 +75,6 @@ class SubscriptionRepository @Inject constructor(
 
     init {
         scope.launch {
-            appPreferences.checkAndResetLocalUsageIfNeeded()
             runCatching {
                 authRepository.authState.first { !it.isLoading }
                 recordingRepository.awaitStartupRecovery()
@@ -99,11 +98,11 @@ class SubscriptionRepository @Inject constructor(
         val user = authRepository.authState.value.user
         if (user != null) {
             if (user.subscriptionTier.isPaid || !user.hasReachedLimit) return Result.success(Unit)
-            return Result.failure(Exception("You've used all ${user.effectiveWordLimit} free words. Upgrade or invite a friend to keep dictating."))
+            return Result.failure(Exception("You've used all ${user.effectiveWordLimit} trial words. Unlimited is \$8.49/month or \$84.99/year."))
         }
 
         return if (appPreferences.hasReachedLocalFreeLimit()) {
-            Result.failure(Exception("You've used all 2,000 free words this month. Sign in to unlock more words or upgrade."))
+            Result.failure(Exception("You've dictated 5,000 words. Unlimited is \$8.49/month or \$84.99/year."))
         } else {
             Result.success(Unit)
         }

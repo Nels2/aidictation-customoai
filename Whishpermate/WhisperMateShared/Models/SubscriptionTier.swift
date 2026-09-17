@@ -10,7 +10,7 @@ import Foundation
 // MARK: - Usage Limits
 
 public enum UsageLimits {
-    public static let freeMonthlyWordLimit = 2000
+    public static let freeTrialWordLimit = 5000
 }
 
 // MARK: - Subscription Tier
@@ -39,7 +39,7 @@ public enum SubscriptionTier: String, Codable {
     public var wordLimit: Int {
         switch self {
         case .free:
-            return UsageLimits.freeMonthlyWordLimit
+            return UsageLimits.freeTrialWordLimit
         case .pro, .lifetime:
             return Int.max // Unlimited
         }
@@ -50,7 +50,7 @@ public enum SubscriptionTier: String, Codable {
         case .free:
             return "$0"
         case .pro:
-            return "$9.99/month"
+            return "$8.49/month"
         case .lifetime:
             return "One-time purchase"
         }
@@ -60,7 +60,7 @@ public enum SubscriptionTier: String, Codable {
         switch self {
         case .free:
             return [
-                "\(UsageLimits.freeMonthlyWordLimit.formatted()) words/month",
+                "\(UsageLimits.freeTrialWordLimit.formatted()) trial words",
                 "Full transcription features",
                 "Local storage",
             ]

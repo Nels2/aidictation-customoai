@@ -65,16 +65,6 @@ public struct User: Codable, Identifiable {
         return baseLimit + bonusWords
     }
 
-    /// Check if word count needs to be reset (new month has started)
-    public var needsWordCountReset: Bool {
-        // Paid users don't need reset
-        guard !subscriptionTier.isPaid else { return false }
-        // If reset date was never set, we need to set it (don't reset count, just init date)
-        guard let resetAt = wordCountResetAt else { return false }
-        // Check if reset date has passed
-        return Date() >= resetAt
-    }
-
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"

@@ -9,7 +9,6 @@ import WhisperMateShared
 enum BillingPeriod {
     case monthly
     case annual
-    case lifetime
 }
 
 // MARK: - Settings Card Component
@@ -448,11 +447,11 @@ struct SettingsView: View {
                                     .dsFont(.label)
                                     .foregroundStyle(Color.dsMutedForeground)
                             } else if remaining == 0 {
-                                Text("You've used all \(limit) free words this month")
+                                Text("You've used all \(limit) trial words")
                                     .dsFont(.label)
                                     .foregroundStyle(Color.dsWarning)
                             } else {
-                                Text("\(used) of \(limit) words used this month")
+                                Text("\(used) of \(limit) trial words used")
                                     .dsFont(.label)
                                     .foregroundStyle(Color.dsMutedForeground)
                             }
@@ -476,12 +475,6 @@ struct SettingsView: View {
                         }
                         .frame(height: 8)
 
-                        // Reset date
-                        if let resetDate = getResetDate() {
-                            Text("Resets \(resetDate)")
-                                .dsFont(.label)
-                                .foregroundStyle(Color.dsMutedForeground)
-                        }
                     }
                 }
             }
@@ -586,22 +579,6 @@ struct SettingsView: View {
         authManager.isAuthenticated && (authManager.currentUser?.subscriptionTier.isPaid ?? false)
     }
 
-    private func getResetDate() -> String? {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-
-        if authManager.isAuthenticated, let user = authManager.currentUser {
-            if let resetAt = user.wordCountResetAt {
-                return formatter.string(from: resetAt)
-            }
-        } else {
-            if let resetAt = subscriptionManager.localWordCountResetAt {
-                return formatter.string(from: resetAt)
-            }
-        }
-        return nil
-    }
-
     private func openPaymentLink() {
         if isCheckingPayment {
             return
@@ -629,8 +606,6 @@ struct SettingsView: View {
             paymentLinkKey = "STRIPE_PAYMENT_LINK_MONTHLY"
         case .annual:
             paymentLinkKey = "STRIPE_PAYMENT_LINK_ANNUAL"
-        case .lifetime:
-            paymentLinkKey = "STRIPE_PAYMENT_LINK_LIFETIME"
         @unknown default:
             paymentLinkKey = "STRIPE_PAYMENT_LINK_MONTHLY"
         }

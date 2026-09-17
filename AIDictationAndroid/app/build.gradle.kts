@@ -134,7 +134,6 @@ val stripePaymentLink = productionPaymentLink(configValue("STRIPE_PAYMENT_LINK")
 val stripePaymentLinkMonthly = productionPaymentLink(configValue("STRIPE_PAYMENT_LINK_MONTHLY"))
     .ifBlank { stripePaymentLink }
 val stripePaymentLinkAnnual = productionPaymentLink(configValue("STRIPE_PAYMENT_LINK_ANNUAL"))
-val stripePaymentLinkLifetime = productionPaymentLink(configValue("STRIPE_PAYMENT_LINK_LIFETIME"))
 val transcriptionModel = normalizedTranscriptionModel(configValue("TRANSCRIPTION_MODEL"))
 val authWebUrl = normalizedAuthWebUrl(configValue("AUTH_WEB_URL"))
 val authApiUrl = normalizedAuthApiUrl(configValue("SUPABASE_URL"), authWebUrl)
@@ -201,7 +200,6 @@ android {
         buildConfigField("String", "STRIPE_PAYMENT_LINK", buildConfigString(stripePaymentLink))
         buildConfigField("String", "STRIPE_PAYMENT_LINK_MONTHLY", buildConfigString(stripePaymentLinkMonthly))
         buildConfigField("String", "STRIPE_PAYMENT_LINK_ANNUAL", buildConfigString(stripePaymentLinkAnnual))
-        buildConfigField("String", "STRIPE_PAYMENT_LINK_LIFETIME", buildConfigString(stripePaymentLinkLifetime))
         buildConfigField(
             "String",
             "SENTRY_DSN",

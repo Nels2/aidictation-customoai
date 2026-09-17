@@ -18,7 +18,6 @@ public class SubscriptionManager: ObservableObject {
 
     private enum Keys {
         static let localWordCount = "localWordCount"
-        static let localWordCountResetAt = "localWordCountResetAt"
     }
 
     // MARK: - Published Properties
@@ -38,16 +37,9 @@ public class SubscriptionManager: ObservableObject {
         set { AppDefaults.shared.set(newValue, forKey: Keys.localWordCount) }
     }
 
-    public var localWordCountResetAt: Date? {
-        get { AppDefaults.shared.object(forKey: Keys.localWordCountResetAt) as? Date }
-        set { AppDefaults.shared.set(newValue, forKey: Keys.localWordCountResetAt) }
-    }
-
     // MARK: - Initialization
 
     private init() {
-        // Check and reset local count if needed on init
-        checkAndResetLocalIfNeeded()
     }
 
     // MARK: - Subscription
@@ -107,8 +99,7 @@ public class SubscriptionManager: ObservableObject {
             return (used, limit, percentage, isPaid)
         } else {
             // Anonymous user - use local tracking
-            checkAndResetLocalIfNeeded()
-            let limit = UsageLimits.freeMonthlyWordLimit
+            let limit = UsageLimits.freeTrialWordLimit
             let used = localWordCount
             let percentage = Double(used) / Double(limit)
             return (used, limit, percentage, false)
@@ -172,7 +163,7 @@ public class SubscriptionManager: ObservableObject {
         } else {
             // Use local tracking for anonymous users
             let result = checkLocalWordLimit()
-            DebugLog.info("checkCanTranscribe (local): canTranscribe=\(result.canTranscribe), localWordCount=\(localWordCount), limit=\(UsageLimits.freeMonthlyWordLimit)", context: "SubscriptionManager")
+            DebugLog.info("checkCanTranscribe (local): canTranscribe=\(result.canTranscribe), localWordCount=\(localWordCount), limit=\(UsageLimits.freeTrialWordLimit)", context: "SubscriptionManager")
             return result
         }
     }
@@ -216,39 +207,16 @@ public class SubscriptionManager: ObservableObject {
     // MARK: - Local Word Limit Methods
 
     private func checkLocalWordLimit() -> (canTranscribe: Bool, reason: String?) {
-        // Check if reset needed (monthly)
-        checkAndResetLocalIfNeeded()
-
-        if localWordCount >= UsageLimits.freeMonthlyWordLimit {
-            return (false, "You've reached your free limit. Create an account to continue.")
+        if localWordCount >= UsageLimits.freeTrialWordLimit {
+            return (false, "You've dictated 5,000 words. Unlimited is $8.49/month or $84.99/year.")
         }
         return (true, nil)
     }
 
     public func addLocalWords(_ count: Int) {
-        if localWordCountResetAt == nil {
-            localWordCountResetAt = nextMonthStart()
-        }
         localWordCount += count
         usageVersion += 1
-        DebugLog.info("Local word count updated: \(localWordCount)/\(UsageLimits.freeMonthlyWordLimit)", context: "SubscriptionManager")
-    }
-
-    private func checkAndResetLocalIfNeeded() {
-        if let resetAt = localWordCountResetAt, Date() >= resetAt {
-            DebugLog.info("Resetting local word count (was \(localWordCount))", context: "SubscriptionManager")
-            localWordCount = 0
-            localWordCountResetAt = nextMonthStart()
-            usageVersion += 1
-        }
-    }
-
-    private func nextMonthStart() -> Date {
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents([.year, .month], from: now)
-        let startOfMonth = calendar.date(from: components)!
-        return calendar.date(byAdding: .month, value: 1, to: startOfMonth)!
+        DebugLog.info("Local trial word count updated: \(localWordCount)/\(UsageLimits.freeTrialWordLimit)", context: "SubscriptionManager")
     }
 }
 

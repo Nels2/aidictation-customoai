@@ -1308,14 +1308,6 @@ private fun PaywallStep(
             selected = selectedPlan == PaymentPlan.Monthly,
             onClick = { onSelectPlan(PaymentPlan.Monthly) }
         )
-        Spacer(modifier = Modifier.height(10.dp))
-        PlanChoiceCard(
-            title = stringResource(R.string.onboarding_paywall_lifetime),
-            price = stringResource(R.string.onboarding_paywall_lifetime_price),
-            badge = stringResource(R.string.onboarding_paywall_lifetime_badge),
-            selected = selectedPlan == PaymentPlan.Lifetime,
-            onClick = { onSelectPlan(PaymentPlan.Lifetime) }
-        )
     }
 }
 

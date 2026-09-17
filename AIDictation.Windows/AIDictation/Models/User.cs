@@ -75,16 +75,6 @@ public class User
         }
     }
 
-    [JsonIgnore]
-    public bool NeedsWordCountReset
-    {
-        get
-        {
-            if (SubscriptionTier.IsPaid()) return false;
-            if (WordCountResetAt == null) return false;
-            return DateTime.UtcNow >= WordCountResetAt;
-        }
-    }
 }
 
 public enum SubscriptionTier
@@ -96,7 +86,7 @@ public enum SubscriptionTier
 
 public static class SubscriptionTierExtensions
 {
-    public const int FreeMonthlyWordLimit = 2000;
+    public const int FreeTrialWordLimit = 5000;
 
     /// <summary>True for any paid tier (Pro or Lifetime) — unlimited usage.</summary>
     public static bool IsPaid(this SubscriptionTier tier) =>
@@ -112,16 +102,16 @@ public static class SubscriptionTierExtensions
 
     public static int GetWordLimit(this SubscriptionTier tier) => tier switch
     {
-        SubscriptionTier.Free => FreeMonthlyWordLimit,
+        SubscriptionTier.Free => FreeTrialWordLimit,
         SubscriptionTier.Pro => int.MaxValue,
         SubscriptionTier.Lifetime => int.MaxValue,
-        _ => FreeMonthlyWordLimit
+        _ => FreeTrialWordLimit
     };
 
     public static string GetPrice(this SubscriptionTier tier) => tier switch
     {
         SubscriptionTier.Free => "$0",
-        SubscriptionTier.Pro => "$9.99/month",
+        SubscriptionTier.Pro => "$8.49/month",
         SubscriptionTier.Lifetime => "One-time",
         _ => "$0"
     };
@@ -130,7 +120,7 @@ public static class SubscriptionTierExtensions
     {
         SubscriptionTier.Free => new[]
         {
-            $"{FreeMonthlyWordLimit:N0} words/month",
+            $"{FreeTrialWordLimit:N0} trial words",
             "Full transcription features",
             "Local storage"
         },
