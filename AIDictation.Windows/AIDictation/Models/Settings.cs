@@ -9,6 +9,7 @@ public class AppSettings
     public const string CloudTranscriptionProvider = "aidictation";
     public const string LocalTranscriptionProvider = "local";
     public const string AutoTranscriptionProvider = "auto";
+    public const string CustomOpenAITranscriptionProvider = "custom_openai";
 
     [JsonProperty("hotkey")]
     public Hotkey? Hotkey { get; set; } = new(Key.F8);
@@ -48,6 +49,15 @@ public class AppSettings
 
     [JsonProperty("postProcessingProvider")]
     public string PostProcessingProvider { get; set; } = "aidictation";
+
+    // Non-secret custom-server overrides. Empty means use the matching field
+    // from custom-openai.json, if present.
+    [JsonProperty("customOpenAITranscriptionBaseUrl")] public string? CustomOpenAITranscriptionBaseUrl { get; set; }
+    [JsonProperty("customOpenAITranscriptionModel")] public string? CustomOpenAITranscriptionModel { get; set; }
+    [JsonProperty("customOpenAICleanupBaseUrl")] public string? CustomOpenAICleanupBaseUrl { get; set; }
+    [JsonProperty("customOpenAICleanupModel")] public string? CustomOpenAICleanupModel { get; set; }
+    [JsonProperty("customOpenAIRealtimeUrl")] public string? CustomOpenAIRealtimeUrl { get; set; }
+    [JsonProperty("customOpenAIRealtimeModel")] public string? CustomOpenAIRealtimeModel { get; set; }
 
     [JsonProperty("onboardingCompleted")]
     public bool OnboardingCompleted { get; set; } = false;

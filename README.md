@@ -96,6 +96,10 @@ Offline speech recognition and a fully offline workflow are not necessarily the 
 
 AI Dictation can use your reference context to improve the final transcript:
 
+For a self-hosted or third-party compatible service, see [Custom server setup](docs/custom-openai-server.md). Custom server mode is separate from the built-in cloud mode and keeps API keys in the platform's secure credential store.
+
+For a self-hosted or third-party compatible service, see [Custom server setup](docs/custom-openai-server.md). Custom server mode is separate from the built-in cloud mode and keeps API keys in the platform's secure credential store.
+
 - **Personal vocabulary** supplies the intended spelling of names, products, acronyms, and specialist terms.
 - **Replacements** map a spoken form to the text you want returned.
 - **Voice shortcuts** expand a spoken trigger into a phrase you use frequently.

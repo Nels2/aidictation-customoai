@@ -81,6 +81,18 @@ public static class CredentialHelper
         return !string.IsNullOrEmpty(accessToken);
     }
 
+    public static void SaveCustomOpenAITranscriptionKey(string secret) =>
+        SaveCredential("AIDictation_CustomOpenAI_Transcription", secret);
+
+    public static string? LoadCustomOpenAITranscriptionKey() =>
+        LoadCredential("AIDictation_CustomOpenAI_Transcription");
+
+    public static void SaveCustomOpenAICleanupKey(string secret) =>
+        SaveCredential("AIDictation_CustomOpenAI_Cleanup", secret);
+
+    public static string? LoadCustomOpenAICleanupKey() =>
+        LoadCredential("AIDictation_CustomOpenAI_Cleanup");
+
     // MARK: - Private Methods
 
     private static void SaveCredential(string target, string secret)

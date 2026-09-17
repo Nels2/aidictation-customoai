@@ -18,7 +18,11 @@ public static class TranscriptionAttemptSnapshotFactory
         IEnumerable<TextReplacementSnapshot> replacements,
         IEnumerable<TextReplacementSnapshot> expansions,
         string? contextInstructions,
-        bool cleanupEnabled)
+        bool cleanupEnabled,
+        string? transcriptionEndpoint = null,
+        string? transcriptionModel = null,
+        string? cleanupEndpoint = null,
+        string? cleanupModel = null)
     {
         var capturedLanguageCodes = languageCodes.ToArray();
         var capturedLanguageNames = languageNames.ToArray();
@@ -57,6 +61,10 @@ public static class TranscriptionAttemptSnapshotFactory
             capturedExpansions,
             capturedContext,
             capturedVocabulary,
-            reference);
+            reference,
+            transcriptionEndpoint,
+            transcriptionModel,
+            cleanupEndpoint,
+            cleanupModel);
     }
 }

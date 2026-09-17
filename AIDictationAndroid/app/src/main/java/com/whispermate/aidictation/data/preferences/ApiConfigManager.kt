@@ -1,21 +1,25 @@
 package com.whispermate.aidictation.data.preferences
 
 import com.whispermate.aidictation.BuildConfig
+import android.content.Context
 import com.whispermate.aidictation.data.local.ParakeetRuntime
 import javax.inject.Inject
 import javax.inject.Singleton
+import dagger.hilt.android.qualifiers.ApplicationContext
 
 enum class ApiProvider {
     PARAKEET,
     WRITINGMATE,
     OPENAI,
-    GROQ;
+    GROQ,
+    CUSTOM_OPENAI;
 
     fun transcriptionEndpoint(): String = when (this) {
         PARAKEET -> ""
         WRITINGMATE -> "https://writingmate.ai/api/openai/v1/audio/transcriptions"
         OPENAI -> "https://api.openai.com/v1/audio/transcriptions"
         GROQ -> "https://api.groq.com/openai/v1/audio/transcriptions"
+        CUSTOM_OPENAI -> ""
     }
 
     fun llmEndpoint(): String = when (this) {
@@ -23,6 +27,7 @@ enum class ApiProvider {
         WRITINGMATE -> "https://writingmate.ai/api/openai/v1/chat/completions"
         OPENAI -> "https://api.openai.com/v1/chat/completions"
         GROQ -> "https://api.groq.com/openai/v1/chat/completions"
+        CUSTOM_OPENAI -> ""
     }
 }
 
@@ -37,7 +42,7 @@ data class ApiConfig(
 // Android no longer exposes provider/model/key editing, so stale local UI
 // preferences cannot change which transcription endpoint or model is used.
 @Singleton
-class ApiConfigManager @Inject constructor() {
+class ApiConfigManager @Inject constructor(@ApplicationContext private val context: Context) {
     companion object {
         @Volatile
         var instance: ApiConfigManager? = null
@@ -51,13 +56,14 @@ class ApiConfigManager @Inject constructor() {
             ApiProvider.WRITINGMATE -> "soniox/stt-async-v5"
             ApiProvider.OPENAI -> "gpt-transcribe"
             ApiProvider.GROQ -> "whisper-large-v3-turbo"
+            ApiProvider.CUSTOM_OPENAI -> ""
         }
 
         fun defaultPostProcessingModel(): String = "openai/gpt-oss-20b"
     }
 
     private var transcriptionConfig = buildCloudTranscriptionConfig()
-    private val postProcessingConfig = buildDefaultPostProcessingConfig()
+    private var postProcessingConfig = buildDefaultPostProcessingConfig()
 
     init {
         instance = this
@@ -67,6 +73,12 @@ class ApiConfigManager @Inject constructor() {
 
     fun switchTranscriptionToCloud() {
         transcriptionConfig = buildCloudTranscriptionConfig()
+    }
+
+    /** Explicit opt-in; defaults alone never change the selected cloud route. */
+    fun switchTranscriptionToCustomServer() {
+        transcriptionConfig = buildCustomServerConfig()
+        postProcessingConfig = buildCustomCleanupConfig()
     }
 
     fun getPostProcessingConfig(): ApiConfig = postProcessingConfig
@@ -108,6 +120,26 @@ class ApiConfigManager @Inject constructor() {
             apiKey = BuildConfig.AIDICTATION_POST_PROCESSING_KEY,
             model = BuildConfig.AIDICTATION_POST_PROCESSING_MODEL.ifEmpty { defaultPostProcessingModel() },
             endpoint = BuildConfig.AIDICTATION_POST_PROCESSING_ENDPOINT.ifEmpty { provider.llmEndpoint() }
+        )
+    }
+
+    private fun buildCustomServerConfig(): ApiConfig {
+        val profile = CustomOpenAIProfile.load(context)
+        return ApiConfig(
+            provider = ApiProvider.CUSTOM_OPENAI,
+            apiKey = CustomOpenAICredentialStore.transcriptionKey(context),
+            model = profile.transcriptionModel,
+            endpoint = profile.transcriptionEndpoint().orEmpty()
+        )
+    }
+
+    private fun buildCustomCleanupConfig(): ApiConfig {
+        val profile = CustomOpenAIProfile.load(context)
+        return ApiConfig(
+            provider = ApiProvider.CUSTOM_OPENAI,
+            apiKey = CustomOpenAICredentialStore.cleanupKey(context),
+            model = profile.cleanupModel,
+            endpoint = profile.cleanupEndpoint().orEmpty()
         )
     }
 }

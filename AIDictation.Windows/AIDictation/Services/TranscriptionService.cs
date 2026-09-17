@@ -38,7 +38,7 @@ public sealed class TranscriptionService : ITranscriptionPipeline
     }
 
     public bool IsConfigured =>
-        IsOfflineMode || !string.IsNullOrEmpty(BuildConfig.TranscriptionApiKey);
+        IsOfflineMode || ResolveProvider(null) == AppSettings.CustomOpenAITranscriptionProvider || !string.IsNullOrEmpty(BuildConfig.TranscriptionApiKey);
 
     public bool IsOfflineMode =>
         ResolveProvider(null) == AppSettings.LocalTranscriptionProvider;
@@ -74,15 +74,25 @@ public sealed class TranscriptionService : ITranscriptionPipeline
             .Select(shortcut => new TextReplacementSnapshot(shortcut.VoiceTrigger, shortcut.Expansion))
             .OrderByDescending(entry => entry.Trigger.Length)
             .ToArray();
+        var provider = ResolveProvider(providerOverride);
+        var custom = provider == AppSettings.CustomOpenAITranscriptionProvider
+            ? ResolveCustomOpenAIConfiguration()
+            : null;
+        if (provider == AppSettings.CustomOpenAITranscriptionProvider && custom == null)
+            throw new InvalidOperationException("Custom server settings are incomplete or use an unsafe URL.");
         return TranscriptionAttemptSnapshotFactory.Capture(
-            ResolveProvider(providerOverride),
+            provider,
             languageCodes,
             languageNames,
             vocabulary,
             replacements,
             expansions,
             contextInstructions,
-            _settings.Settings.EnableLLMPostProcessing);
+            _settings.Settings.EnableLLMPostProcessing,
+            custom?.TranscriptionEndpoint.AbsoluteUri,
+            custom?.TranscriptionModel,
+            custom?.CleanupEndpoint.AbsoluteUri,
+            custom?.CleanupModel);
     }
 
     public Task<TranscriptionResult> TranscribeAsync(
@@ -204,7 +214,7 @@ public sealed class TranscriptionService : ITranscriptionPipeline
         Func<string, int, CancellationToken, Task<bool>> persistCheckpoint,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(BuildConfig.TranscriptionApiKey))
+        if (snapshot.Provider != AppSettings.CustomOpenAITranscriptionProvider && string.IsNullOrEmpty(BuildConfig.TranscriptionApiKey))
             throw new InvalidOperationException("Cloud mode is not configured in this build.");
 
         using var workspace = ManagedAudioWorkspace.CreateDefault("upload");
@@ -284,7 +294,7 @@ public sealed class TranscriptionService : ITranscriptionPipeline
             FileName = $"\"{Path.GetFileName(audioFilePath)}\""
         };
         content.Add(fileContent);
-        content.Add(CreateFormField("model", BuildConfig.TranscriptionModel));
+        content.Add(CreateFormField("model", snapshot.TranscriptionModel ?? BuildConfig.TranscriptionModel));
         content.Add(CreateFormField("temperature", "0"));
         content.Add(CreateFormField("response_format", "text"));
         if (!string.IsNullOrWhiteSpace(snapshot.RecognitionPrompt))
@@ -303,13 +313,15 @@ public sealed class TranscriptionService : ITranscriptionPipeline
         if (!string.IsNullOrWhiteSpace(language))
             content.Add(CreateFormField("language", language));
 
-        var request = new HttpRequestMessage(HttpMethod.Post, BuildConfig.TranscriptionEndpoint)
+        var request = new HttpRequestMessage(HttpMethod.Post, snapshot.TranscriptionEndpoint ?? BuildConfig.TranscriptionEndpoint)
         {
             Content = content
         };
-        request.Headers.Authorization = new AuthenticationHeaderValue(
-            "Bearer",
-            BuildConfig.TranscriptionApiKey);
+        var apiKey = snapshot.Provider == AppSettings.CustomOpenAITranscriptionProvider
+            ? CredentialHelper.LoadCustomOpenAITranscriptionKey()
+            : BuildConfig.TranscriptionApiKey;
+        if (!string.IsNullOrWhiteSpace(apiKey))
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         try
         {
             var response = await _httpClient.SendAsync(
@@ -359,9 +371,29 @@ public sealed class TranscriptionService : ITranscriptionPipeline
                 ? AppSettings.CloudTranscriptionProvider
                 : AppSettings.LocalTranscriptionProvider;
         }
+        if (provider == AppSettings.CustomOpenAITranscriptionProvider)
+            return AppSettings.CustomOpenAITranscriptionProvider;
         return provider == AppSettings.LocalTranscriptionProvider
             ? AppSettings.LocalTranscriptionProvider
             : AppSettings.CloudTranscriptionProvider;
+    }
+
+    private (Uri TranscriptionEndpoint, string TranscriptionModel, Uri CleanupEndpoint, string CleanupModel)? ResolveCustomOpenAIConfiguration()
+    {
+        var defaults = CustomOpenAIConfiguration.LoadDefaults();
+        var settings = _settings.Settings;
+        var transcriptionBase = string.IsNullOrWhiteSpace(settings.CustomOpenAITranscriptionBaseUrl)
+            ? defaults.Transcription.BaseUrl : settings.CustomOpenAITranscriptionBaseUrl;
+        var cleanupBase = string.IsNullOrWhiteSpace(settings.CustomOpenAICleanupBaseUrl)
+            ? defaults.Cleanup.BaseUrl : settings.CustomOpenAICleanupBaseUrl;
+        if (!CustomOpenAIEndpoint.TryDerive(transcriptionBase ?? string.Empty, "/audio/transcriptions", out var transcription) ||
+            !CustomOpenAIEndpoint.TryDerive(cleanupBase ?? string.Empty, "/chat/completions", out var cleanup))
+            return null;
+        var transcriptionModel = string.IsNullOrWhiteSpace(settings.CustomOpenAITranscriptionModel)
+            ? defaults.Transcription.Model : settings.CustomOpenAITranscriptionModel;
+        var cleanupModel = string.IsNullOrWhiteSpace(settings.CustomOpenAICleanupModel)
+            ? defaults.Cleanup.Model : settings.CustomOpenAICleanupModel;
+        return (transcription, transcriptionModel ?? string.Empty, cleanup, cleanupModel ?? string.Empty);
     }
 
     private string? GetActiveContextInstructions()

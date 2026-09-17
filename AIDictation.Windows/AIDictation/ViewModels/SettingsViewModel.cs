@@ -147,6 +147,14 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private double _modelDownloadProgress;
 
+    [ObservableProperty] private string _customServerTranscriptionUrl = string.Empty;
+    [ObservableProperty] private string _customServerTranscriptionModel = string.Empty;
+    [ObservableProperty] private string _customServerCleanupUrl = string.Empty;
+    [ObservableProperty] private string _customServerCleanupModel = string.Empty;
+    [ObservableProperty] private string _customServerTranscriptionKey = string.Empty;
+    [ObservableProperty] private string _customServerCleanupKey = string.Empty;
+    [ObservableProperty] private string? _customServerStatus;
+
     // Device enumeration is asynchronous. Until it has reconciled the saved
     // endpoint ID, selecting the temporary "Default" row is initialization,
     // not a user request to erase the configured microphone.
@@ -488,7 +496,7 @@ public partial class SettingsViewModel : ObservableObject
         settings.Settings.TranscriptionProvider = value.Key;
         settings.SaveSettings();
 
-        if (value.Key != AppSettings.CloudTranscriptionProvider &&
+        if ((value.Key == AppSettings.LocalTranscriptionProvider || value.Key == AppSettings.AutoTranscriptionProvider) &&
             !WhisperLocalService.Instance.IsModelDownloaded)
         {
             _ = DownloadWhisperModelAsync();
@@ -650,6 +658,7 @@ public partial class SettingsViewModel : ObservableObject
         TranscriptionModes.Add(new ModeItem(AppSettings.CloudTranscriptionProvider, "Cloud"));
         TranscriptionModes.Add(new ModeItem(AppSettings.LocalTranscriptionProvider, "On-device"));
         TranscriptionModes.Add(new ModeItem(AppSettings.AutoTranscriptionProvider, "Automatic"));
+        TranscriptionModes.Add(new ModeItem(AppSettings.CustomOpenAITranscriptionProvider, "Custom server"));
     }
 
     private void LoadOverlayOptions()
@@ -680,6 +689,10 @@ public partial class SettingsViewModel : ObservableObject
         MuteAudioWhenRecording = s.MuteAudioWhenRecording;
         PushToTalk = s.PushToTalk;
         LaunchAtStartup = settings.GetLaunchAtStartup();
+        CustomServerTranscriptionUrl = s.CustomOpenAITranscriptionBaseUrl ?? string.Empty;
+        CustomServerTranscriptionModel = s.CustomOpenAITranscriptionModel ?? string.Empty;
+        CustomServerCleanupUrl = s.CustomOpenAICleanupBaseUrl ?? string.Empty;
+        CustomServerCleanupModel = s.CustomOpenAICleanupModel ?? string.Empty;
 
         var deviceId = s.SelectedAudioDeviceId;
         SelectedAudioDevice = deviceId != null
@@ -714,6 +727,30 @@ public partial class SettingsViewModel : ObservableObject
 
         OverlayService.Shared.ApplySettings(s);
         OnPropertyChanged(nameof(DictationHotkeyText));
+    }
+
+    [RelayCommand]
+    private void SaveCustomServer()
+    {
+        var settings = SettingsService.Instance;
+        if (!CustomOpenAIEndpoint.TryDerive(CustomServerTranscriptionUrl, "/audio/transcriptions", out _) ||
+            !CustomOpenAIEndpoint.TryDerive(CustomServerCleanupUrl, "/chat/completions", out _))
+        {
+            CustomServerStatus = "Enter secure server addresses that include the API base path.";
+            return;
+        }
+        settings.Settings.CustomOpenAITranscriptionBaseUrl = CustomServerTranscriptionUrl.Trim();
+        settings.Settings.CustomOpenAITranscriptionModel = CustomServerTranscriptionModel.Trim();
+        settings.Settings.CustomOpenAICleanupBaseUrl = CustomServerCleanupUrl.Trim();
+        settings.Settings.CustomOpenAICleanupModel = CustomServerCleanupModel.Trim();
+        if (!string.IsNullOrWhiteSpace(CustomServerTranscriptionKey))
+            CredentialHelper.SaveCustomOpenAITranscriptionKey(CustomServerTranscriptionKey);
+        if (!string.IsNullOrWhiteSpace(CustomServerCleanupKey))
+            CredentialHelper.SaveCustomOpenAICleanupKey(CustomServerCleanupKey);
+        settings.SaveSettings();
+        CustomServerTranscriptionKey = string.Empty;
+        CustomServerCleanupKey = string.Empty;
+        CustomServerStatus = "Custom server settings saved.";
     }
 
     private void LoadWords()

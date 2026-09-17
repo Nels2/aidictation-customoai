@@ -53,7 +53,11 @@ public sealed record TranscriptionAttemptSnapshot(
     IReadOnlyList<TextReplacementSnapshot> Expansions,
     string? ContextInstructions,
     IReadOnlyList<string>? Vocabulary = null,
-    string? CleanupReferenceBlock = null);
+    string? CleanupReferenceBlock = null,
+    string? TranscriptionEndpoint = null,
+    string? TranscriptionModel = null,
+    string? CleanupEndpoint = null,
+    string? CleanupModel = null);
 
 public sealed record TextReplacementSnapshot(string Trigger, string Replacement);
 

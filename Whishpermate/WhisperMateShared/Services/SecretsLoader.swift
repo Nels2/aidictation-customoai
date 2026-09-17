@@ -18,6 +18,8 @@ public enum SecretsLoader {
             return sanitizedSecret("GroqTranscriptionKey")
         case .custom:
             return sanitizedSecret("CustomTranscriptionKey")
+        case .customServer:
+            return nil
         case .openai:
             return sanitizedSecret("OpenAITranscriptionKey") ?? sanitizedSecret("OpenAIAPIKey")
         }

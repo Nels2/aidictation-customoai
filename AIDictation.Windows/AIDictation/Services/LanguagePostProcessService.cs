@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AIDictation.Helpers;
+using AIDictation.Models;
 
 namespace AIDictation.Services;
 
@@ -83,7 +84,12 @@ public sealed class LanguagePostProcessService
     {
         if (string.IsNullOrWhiteSpace(rawText)) return rawText;
 
-        if (string.IsNullOrEmpty(_apiKey))
+        var endpoint = snapshot.CleanupEndpoint != null && Uri.TryCreate(snapshot.CleanupEndpoint, UriKind.Absolute, out var configuredEndpoint)
+            ? configuredEndpoint : _endpoint;
+        var model = snapshot.CleanupModel ?? _model;
+        var apiKey = snapshot.Provider == AppSettings.CustomOpenAITranscriptionProvider
+            ? CredentialHelper.LoadCustomOpenAICleanupKey() : _apiKey;
+        if (string.IsNullOrEmpty(apiKey) && snapshot.Provider != AppSettings.CustomOpenAITranscriptionProvider)
         {
             Debug.WriteLine("[LanguagePostProcess] API key not configured, skipping");
             return rawText;
@@ -109,7 +115,7 @@ public sealed class LanguagePostProcessService
             deadline.CancelAfter(_deadline);
             var requestJson = JsonSerializer.Serialize(new
             {
-                model = _model,
+                model,
                 messages = new[]
                 {
                     new { role = "system", content = systemPrompt },
@@ -119,11 +125,12 @@ public sealed class LanguagePostProcessService
                 temperature = 0.0
             });
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, _endpoint)
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
             {
                 Content = new StringContent(requestJson, Encoding.UTF8, "application/json")
             };
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
             var sendTask = Task.Run(
                 () => _httpClient.SendAsync(

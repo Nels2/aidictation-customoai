@@ -56,10 +56,9 @@ public enum SharedTranscriptionService {
                 let provider = providerManager.selectedProvider == .onDevice
                     ? TranscriptionProvider.custom
                     : providerManager.selectedProvider
-                guard let apiKey = KeychainHelper.get(key: provider.apiKeyName)
-                    ?? SecretsLoader.transcriptionKey(for: provider),
-                    !apiKey.isEmpty
-                else {
+                let apiKey = KeychainHelper.get(key: provider.apiKeyName)
+                    ?? SecretsLoader.transcriptionKey(for: provider) ?? ""
+                guard provider == .customServer || !apiKey.isEmpty else {
                     throw error("API key not configured")
                 }
                 let endpoint = providerManager.effectiveEndpoint.isEmpty
@@ -86,6 +85,21 @@ public enum SharedTranscriptionService {
                         customRealtimeEndpoint: WritingmateRealtimeSessionSupport.configuredOverrideEndpoint(),
                         customRealtimeModel: WritingmateRealtimeSessionSupport.configuredOverrideModel()
                     )
+                } else if provider == .customServer,
+                          let realtimeURL = URL(string: CustomOpenAIProfile.current.transcription.realtimeUrl ?? ""),
+                          CustomOpenAIProfile.isAllowed(realtimeURL) || realtimeURL.scheme == "wss" {
+                    let languageManager = LanguageManager.shared
+                    realtime = RealtimeRequestConfiguration(
+                        transcriptionEndpoint: endpoint,
+                        apiKey: apiKey,
+                        configuredModel: CustomOpenAIProfile.current.transcription.realtimeModel ?? "",
+                        prompt: prompts.stt,
+                        language: languageManager.apiLanguageCode,
+                        keywords: Array(Set(dictionaryManager.transcriptionKeywords)),
+                        languages: languageManager.apiLanguageCodes,
+                        customRealtimeEndpoint: realtimeURL,
+                        customRealtimeModel: CustomOpenAIProfile.current.transcription.realtimeModel
+                    )
                 } else {
                     realtime = nil
                 }
@@ -94,7 +108,7 @@ public enum SharedTranscriptionService {
             return RequestSnapshot(
                 useOnDeviceRecognition: useOnDevice,
                 cloud: cloud,
-                cleanup: captureCleanupConfiguration(),
+                cleanup: captureCleanupConfiguration(for: provider),
                 realtime: realtime,
                 outputMode: selectedOutputMode,
                 transcriptionOptions: transcriptionOptions,
@@ -543,7 +557,16 @@ public enum SharedTranscriptionService {
         return RecognitionResult(rawTranscript: transcript)
     }
 
-    private static func captureCleanupConfiguration() -> CleanupRequestConfiguration? {
+    private static func captureCleanupConfiguration(for transcriptionProvider: TranscriptionProvider) -> CleanupRequestConfiguration? {
+        if transcriptionProvider == .customServer,
+           let endpoint = CustomOpenAIProfile.current.cleanup.endpoint,
+           !endpoint.isEmpty {
+            return CleanupRequestConfiguration(
+                endpoint: endpoint,
+                model: CustomOpenAIProfile.current.cleanup.model ?? "",
+                apiKey: KeychainHelper.get(key: "customServer_cleanup_api_key") ?? ""
+            )
+        }
         if let endpoint = SecretsLoader.aidictationPostProcessingEndpoint(),
            let apiKey = SecretsLoader.aidictationPostProcessingKey()
         {

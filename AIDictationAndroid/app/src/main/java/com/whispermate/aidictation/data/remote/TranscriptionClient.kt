@@ -76,7 +76,8 @@ object TranscriptionClient {
         val model: String,
         val cleanupEndpoint: String,
         val cleanupApiKey: String,
-        val cleanupModel: String
+        val cleanupModel: String,
+        val allowAnonymous: Boolean = false
     )
 
     private val okHttpClient by lazy {
@@ -154,7 +155,7 @@ object TranscriptionClient {
                     "postProcessingPromptLength: ${postProcessingPrompt?.length ?: 0}"
             )
 
-            if (requestSnapshot.apiKey.isEmpty()) {
+            if (requestSnapshot.apiKey.isEmpty() && !requestSnapshot.allowAnonymous) {
                 Log.e(TAG, "Cloud mode is not configured")
                 return@withContext Result.failure(AudioHttpException(401, "Cloud mode is not configured"))
             }
@@ -241,7 +242,8 @@ object TranscriptionClient {
             model = config?.model ?: BuildConfig.TRANSCRIPTION_MODEL,
             cleanupEndpoint = cleanupConfig?.endpoint ?: BuildConfig.AIDICTATION_POST_PROCESSING_ENDPOINT,
             cleanupApiKey = cleanupConfig?.apiKey ?: BuildConfig.AIDICTATION_POST_PROCESSING_KEY,
-            cleanupModel = cleanupConfig?.model ?: BuildConfig.AIDICTATION_POST_PROCESSING_MODEL
+            cleanupModel = cleanupConfig?.model ?: BuildConfig.AIDICTATION_POST_PROCESSING_MODEL,
+            allowAnonymous = config?.provider == com.whispermate.aidictation.data.preferences.ApiProvider.CUSTOM_OPENAI
         )
     }
 
@@ -283,11 +285,9 @@ object TranscriptionClient {
                 }
                 .build()
 
-        val request = Request.Builder()
-                .url(snapshot.endpoint)
-                .addHeader("Authorization", "Bearer ${snapshot.apiKey}")
-                .post(requestBody)
-                .build()
+        val request = Request.Builder().url(snapshot.endpoint).apply {
+            if (snapshot.apiKey.isNotEmpty()) addHeader("Authorization", "Bearer ${snapshot.apiKey}")
+        }.post(requestBody).build()
 
         val response = executeAudioHttpRequest(okHttpClient, request)
         return parseTranscriptionText(response.body, response.contentType)
@@ -298,7 +298,7 @@ object TranscriptionClient {
         prompt: String,
         snapshot: RequestSnapshot
     ): String {
-        if (snapshot.cleanupApiKey.isEmpty()) {
+        if (snapshot.cleanupApiKey.isEmpty() && !snapshot.allowAnonymous) {
             Log.w(TAG, "Post-processing API key not configured, returning merged transcript")
             return transcription
         }
@@ -320,12 +320,10 @@ object TranscriptionClient {
                 put("max_tokens", 8192)
             }
 
-            val request = Request.Builder()
-                .url(snapshot.cleanupEndpoint)
-                .addHeader("Authorization", "Bearer ${snapshot.cleanupApiKey}")
-                .addHeader("Content-Type", "application/json")
-                .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
+            val request = Request.Builder().url(snapshot.cleanupEndpoint).apply {
+                if (snapshot.cleanupApiKey.isNotEmpty()) addHeader("Authorization", "Bearer ${snapshot.cleanupApiKey}")
+                addHeader("Content-Type", "application/json")
+            }.post(requestJson.toString().toRequestBody("application/json".toMediaType())).build()
 
             Log.d(TAG, "Applying one LLM post-processing pass to merged chunk transcript")
             executeCancellable(request) { response ->

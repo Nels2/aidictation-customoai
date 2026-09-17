@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "transcription": {
+    "baseUrl": "https://server.example/v1",
+    "model": "whisper-1",
+    "realtimeUrl": "wss://server.example/v1/realtime?intent=transcription",
+    "realtimeModel": "gpt-4o-transcribe"
+  },
+  "cleanup": {
+    "baseUrl": "https://server.example/v1",
+    "model": "gpt-4o-mini"
+  }
+}

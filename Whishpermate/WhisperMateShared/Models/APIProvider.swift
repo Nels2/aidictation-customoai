@@ -8,6 +8,7 @@ public enum TranscriptionProvider: String, CaseIterable, Identifiable {
     case groq
     case openai
     case custom
+    case customServer
 
     public var id: String { rawValue }
 
@@ -17,6 +18,7 @@ public enum TranscriptionProvider: String, CaseIterable, Identifiable {
         case .groq: return "Groq"
         case .openai: return "OpenAI"
         case .custom: return "AI Dictation"
+        case .customServer: return "Custom server"
         }
     }
 
@@ -26,6 +28,7 @@ public enum TranscriptionProvider: String, CaseIterable, Identifiable {
         case .groq: return "Whisper Large V3"
         case .openai: return "Whisper API"
         case .custom: return "Produces polished, ready-to-use text"
+        case .customServer: return "Use your own compatible server"
         }
     }
 
@@ -35,6 +38,7 @@ public enum TranscriptionProvider: String, CaseIterable, Identifiable {
         case .groq: return "https://api.groq.com/openai/v1/audio/transcriptions"
         case .openai: return "https://api.openai.com/v1/audio/transcriptions"
         case .custom: return "https://writingmate.ai/api/openai/v1/audio/transcriptions"
+        case .customServer: return ""
         }
     }
 
@@ -44,6 +48,7 @@ public enum TranscriptionProvider: String, CaseIterable, Identifiable {
         case .groq: return "whisper-large-v3-turbo"
         case .openai: return "gpt-transcribe"
         case .custom: return "soniox/stt-async-v5"
+        case .customServer: return ""
         }
     }
 
@@ -55,7 +60,7 @@ public enum TranscriptionProvider: String, CaseIterable, Identifiable {
         switch self {
         case .groq, .openai:
             return true
-        case .onDevice, .custom:
+        case .onDevice, .custom, .customServer:
             return false
         }
     }
@@ -222,6 +227,10 @@ public class TranscriptionProviderManager: ObservableObject {
             }
         }
 
+        if selectedProvider == .customServer {
+            return CustomOpenAIProfile.current.transcription.endpoint ?? ""
+        }
+
         if !customEndpoint.isEmpty {
             return customEndpoint
         }
@@ -240,6 +249,10 @@ public class TranscriptionProviderManager: ObservableObject {
             }
         }
 
+        if selectedProvider == .customServer {
+            return CustomOpenAIProfile.current.transcription.model
+        }
+
         if !customModel.isEmpty {
             return customModel
         }
@@ -249,6 +262,42 @@ public class TranscriptionProviderManager: ObservableObject {
     private var hasCloudCredentials: Bool {
         let cloudProvider = selectedProvider == .onDevice ? TranscriptionProvider.custom : selectedProvider
         return KeychainHelper.get(key: cloudProvider.apiKeyName) != nil || SecretsLoader.transcriptionKey(for: cloudProvider) != nil
+    }
+}
+
+/// Shared non-secret defaults for the explicit Custom server mode. Per-field
+/// app settings can be added without changing this format; this file is never
+/// rewritten and API keys remain in Keychain.
+public struct CustomOpenAIProfile: Codable, Sendable {
+    public struct Transcription: Codable, Sendable {
+        public var baseUrl: String? = nil; public var model: String? = nil; public var realtimeUrl: String? = nil; public var realtimeModel: String? = nil
+        public var endpoint: String? { Self.endpoint(baseUrl, suffix: "/audio/transcriptions") }
+        static func endpoint(_ value: String?, suffix: String) -> String? {
+            guard let value, let url = URL(string: value.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))),
+                  (url.scheme == "https" || (CustomOpenAIProfile.isLocal(url) && url.scheme == "http")) else { return nil }
+            return url.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + suffix
+        }
+    }
+    public struct Cleanup: Codable, Sendable {
+        public var baseUrl: String? = nil; public var model: String? = nil
+        public var endpoint: String? { Transcription.endpoint(baseUrl, suffix: "/chat/completions") }
+    }
+    public var version: Int = 1
+    public var transcription = Transcription()
+    public var cleanup = Cleanup()
+
+    public static var current: CustomOpenAIProfile {
+        guard let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return CustomOpenAIProfile() }
+        let url = root.appendingPathComponent("AI Dictation/custom-openai.json")
+        guard let data = try? Data(contentsOf: url), let profile = try? JSONDecoder().decode(CustomOpenAIProfile.self, from: data) else { return CustomOpenAIProfile() }
+        return profile
+    }
+    static func isAllowed(_ url: URL) -> Bool {
+        let localhost = isLocal(url)
+        return url.scheme == "https" || url.scheme == "wss" || (localhost && (url.scheme == "http" || url.scheme == "ws"))
+    }
+    static func isLocal(_ url: URL) -> Bool {
+        ["localhost", "127.0.0.1", "::1"].contains(url.host?.lowercased() ?? "")
     }
 }
 
