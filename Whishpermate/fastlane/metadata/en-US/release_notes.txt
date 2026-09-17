@@ -1,7 +1,6 @@
-Keyboard dictation is back on its feet.
+The free plan is now a clearer one-time trial.
 
-• The keyboard mic works again after the first session: later taps start recording right inside the keyboard instead of failing or bouncing to the app.
-• New Cancel button on the keyboard while recording or transcribing.
-• Clearer status when a recording can't start, instead of silently returning to the keys.
-• Cloud dictation streams live through Writingmate when you're signed in; otherwise it falls back to standard upload.
-• Fixes for the app getting stuck behind storage checks at launch.
+• Try the full product for 5,000 words with no monthly reset.
+• When the trial ends, the app shows the real monthly and annual Pro prices.
+• New lifetime purchases are no longer offered. Existing lifetime access still works exactly as before.
+• Usage labels now distinguish trial words from unlimited paid access.
