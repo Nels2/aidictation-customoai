@@ -492,12 +492,18 @@
                         <StackPanel>
                             <TextBlock Text="Custom server" Style="{StaticResource RowTitle}"/>
                             <TextBlock Text="Use your own compatible transcription and cleanup service when Custom server is selected." Style="{StaticResource RowDesc}" Margin="0,2,0,10"/>
-                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerTranscriptionUrl, UpdateSourceTrigger=PropertyChanged}" ToolTip="Transcription API base address" Margin="0,0,0,6"/>
-                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerTranscriptionModel, UpdateSourceTrigger=PropertyChanged}" ToolTip="Transcription model" Margin="0,0,0,6"/>
-                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerCleanupUrl, UpdateSourceTrigger=PropertyChanged}" ToolTip="Cleanup API base address" Margin="0,0,0,6"/>
-                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerCleanupModel, UpdateSourceTrigger=PropertyChanged}" ToolTip="Cleanup model" Margin="0,0,0,6"/>
-                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerTranscriptionKey, UpdateSourceTrigger=PropertyChanged}" ToolTip="Transcription key (optional)" Margin="0,0,0,6"/>
-                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerCleanupKey, UpdateSourceTrigger=PropertyChanged}" ToolTip="Cleanup key (optional)"/>
+                            <TextBlock Text="Transcription server address" Style="{StaticResource RowDesc}" Margin="0,0,0,3"/>
+                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerTranscriptionUrl, UpdateSourceTrigger=PropertyChanged}" ToolTip="For example: https://server.example/v1" Margin="0,0,0,8"/>
+                            <TextBlock Text="Transcription model" Style="{StaticResource RowDesc}" Margin="0,0,0,3"/>
+                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerTranscriptionModel, UpdateSourceTrigger=PropertyChanged}" ToolTip="For example: whisper-1" Margin="0,0,0,8"/>
+                            <TextBlock Text="Cleanup server address" Style="{StaticResource RowDesc}" Margin="0,0,0,3"/>
+                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerCleanupUrl, UpdateSourceTrigger=PropertyChanged}" ToolTip="For example: https://server.example/v1" Margin="0,0,0,8"/>
+                            <TextBlock Text="Cleanup model" Style="{StaticResource RowDesc}" Margin="0,0,0,3"/>
+                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerCleanupModel, UpdateSourceTrigger=PropertyChanged}" ToolTip="For example: gpt-4o-mini" Margin="0,0,0,8"/>
+                            <TextBlock Text="Transcription key (optional)" Style="{StaticResource RowDesc}" Margin="0,0,0,3"/>
+                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerTranscriptionKey, UpdateSourceTrigger=PropertyChanged}" ToolTip="Leave blank to keep the saved key or use no key" Margin="0,0,0,8"/>
+                            <TextBlock Text="Cleanup key (optional)" Style="{StaticResource RowDesc}" Margin="0,0,0,3"/>
+                            <TextBox Style="{StaticResource DarkInput}" Text="{Binding CustomServerCleanupKey, UpdateSourceTrigger=PropertyChanged}" ToolTip="Leave blank to keep the saved key or use no key"/>
                             <TextBlock Text="Keys are saved in Windows Credential Manager and are not written to the profile file." Style="{StaticResource RowDesc}"/>
                             <Button Style="{StaticResource AccentButton}" Content="Save custom server" Command="{Binding SaveCustomServerCommand}" HorizontalAlignment="Left" Margin="0,10,0,0"/>
                             <TextBlock Text="{Binding CustomServerStatus}" Style="{StaticResource RowDesc}" Margin="0,6,0,0"/>
