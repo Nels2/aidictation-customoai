@@ -786,6 +786,7 @@ public partial class App : Application
         // Remember where the user is dictating so the paste cannot land in a
         // window focused later (e.g. after Alt-Tab during transcription).
         _dictationTargetWindow = Helpers.ForegroundWindowHelper.GetForegroundWindowHandle();
+        Debug.WriteLine($"Dictation target captured: {_dictationTargetWindow:X}");
         _recordingStartedAt = DateTime.Now;
         _captureStartTask = StartRecordingCoreAsync(isCommandMode);
     }
@@ -898,27 +899,10 @@ public partial class App : Application
                 LogException("StopRecordingAsync",
                     new InvalidOperationException($"Paste failed: {pasteResult.FailureReason} - {pasteResult.ErrorMessage}"));
 
-                // Notify the user that the transcript is on the clipboard and they can paste manually.
-                // The transcript was successfully saved to History, so this is a delivery issue only.
-                var userMessage = pasteResult.FailureReason switch
-                {
-                    PasteFailureReason.ElevatedTargetWindow =>
-                        "The target app is running as administrator. Your transcript is on the clipboard — press Ctrl+V to paste.",
-                    PasteFailureReason.InputInjectionBlocked =>
-                        "Paste was blocked by Windows or security software. Your transcript is on the clipboard — press Ctrl+V to paste.",
-                    PasteFailureReason.FocusBlocked =>
-                        "Could not focus the target window. Your transcript is on the clipboard — press Ctrl+V to paste.",
-                    PasteFailureReason.TargetWindowGone =>
-                        "The target window has closed. Your transcript is on the clipboard — press Ctrl+V to paste.",
-                    PasteFailureReason.ClipboardLocked =>
-                        "Could not access the clipboard. Your transcript was saved to History.",
-                    _ =>
-                        "Could not paste automatically. Your transcript is on the clipboard — press Ctrl+V to paste."
-                };
-
-                // Set an error state so the user sees the message. This is not a
-                // transcription error - the transcript succeeded but delivery failed.
-                AppState.Shared.SetError(userMessage);
+                // Recognition has already published a successful result, so a
+                // delivery warning must not replace it with a transcription error.
+                Debug.WriteLine($"Transcript delivery failed: {pasteResult.FailureReason}");
+                ShowDeliveryNotice(pasteResult.FailureReason);
             }
         }
         catch (OperationCanceledException)
@@ -932,6 +916,27 @@ public partial class App : Application
             try { await AudioProcessingCoordinator.Instance.CancelAsync("Audio processing was interrupted."); }
             catch { }
             AppState.Shared.SetError("Audio processing stopped unexpectedly. The recording was kept for recovery.");
+        }
+    }
+
+    private void ShowDeliveryNotice(PasteFailureReason reason)
+    {
+        try
+        {
+            _trayIcon?.ShowNotification(
+                reason == PasteFailureReason.ClipboardLocked
+                    ? "Transcript saved in History"
+                    : "Transcript ready to paste",
+                reason == PasteFailureReason.ClipboardLocked
+                    ? "The clipboard was unavailable. Copy your transcript from History."
+                    : "Your transcript is ready to paste. Press Ctrl+V to paste.",
+                NotificationIcon.Info);
+        }
+        catch (Exception ex)
+        {
+            // A blocked Windows notification must never hide the successful
+            // transcript. Keep a local diagnostic without transcript content.
+            Debug.WriteLine($"Delivery notice failed: {ex.Message}");
         }
     }
 

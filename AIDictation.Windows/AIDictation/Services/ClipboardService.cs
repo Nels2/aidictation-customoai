@@ -31,7 +31,8 @@ public enum PasteFailureReason
     TargetWindowGone,
     FocusBlocked,
     InputInjectionBlocked,
-    ElevatedTargetWindow
+    ElevatedTargetWindow,
+    DeliveryUnconfirmed
 }
 
 /// <summary>
@@ -51,7 +52,7 @@ public sealed class ClipboardService
     private static class Constants
     {
         public const int ClipboardDelayMs = 50;
-        public const int PasteDelayMs = 30;
+        public const int PasteDeliveryCheckDelayMs = 150;
         public const int ClipboardRestoreDelayMs = 500;
         public const int FocusRestoreDelayMs = 150;
         public const int ClipboardWriteAttempts = 5;
@@ -76,14 +77,6 @@ public sealed class ClipboardService
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SetFocus(IntPtr hWnd);
-
-    private const uint WM_PASTE = 0x0302;
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
@@ -180,9 +173,9 @@ public sealed class ClipboardService
                         "The target application is running as administrator. Press Ctrl+V to paste.");
                 }
 
-                // Focus the window and send the paste command while keeping thread
-                // attachment. This improves reliability on some systems where input
-                // injection fails if we detach before sending.
+                // Focus the original target and send the paste command while its
+                // input queue is attached. A queued WM_PASTE is deliberately not a
+                // fallback: accepting that message does not prove the editor used it.
                 var (focusOk, sendResult) = await FocusAndSendPasteAsync(targetWindow);
 
                 if (!focusOk)
@@ -208,6 +201,23 @@ public sealed class ClipboardService
                         PasteFailureReason.InputInjectionBlocked,
                         sendResult.ErrorMessage ?? "Keyboard input was blocked. Press Ctrl+V to paste.");
                 }
+
+                // SendInput only confirms that Windows accepted the keys. Where UI
+                // Automation can read the focused editor, ensure the payload reached
+                // it before claiming automatic delivery.
+                await Task.Delay(Constants.PasteDeliveryCheckDelayMs);
+                if (TryReadFocusedText(targetWindow, out var visibleText) &&
+                    !visibleText.Contains(textToInsert, StringComparison.Ordinal))
+                {
+                    const string message =
+                        "Windows accepted the paste command, but the target app did not receive the transcript.";
+                    System.Diagnostics.Debug.WriteLine(
+                        $"PasteTextAsync: delivery was not confirmed for target {targetWindow:X}");
+                    HighValueErrorSink.ReportTextInsertFailure(
+                        message,
+                        nameof(PasteFailureReason.DeliveryUnconfirmed));
+                    return PasteResult.Failed(PasteFailureReason.DeliveryUnconfirmed, message);
+                }
             }
             else
             {
@@ -227,7 +237,6 @@ public sealed class ClipboardService
             }
 
             pasted = true;
-            await Task.Delay(Constants.PasteDelayMs);
             return PasteResult.Succeeded;
         }
         finally
@@ -326,8 +335,11 @@ public sealed class ClipboardService
     {
         if (GetForegroundWindow() == hWnd)
         {
-            // Already focused, just send the paste
+            System.Diagnostics.Debug.WriteLine(
+                $"FocusAndSendPasteAsync: target {hWnd:X} already foreground; sending paste");
             var result = SendInputHelper.SendPasteWithResult();
+            System.Diagnostics.Debug.WriteLine(
+                $"FocusAndSendPasteAsync: SendInput success={result.Success}");
             return (true, result);
         }
 
@@ -343,13 +355,8 @@ public sealed class ClipboardService
             var requested = SetForegroundWindow(hWnd);
             if (!requested)
             {
-                System.Diagnostics.Debug.WriteLine("FocusAndSendPasteAsync: SetForegroundWindow returned false");
-                // Fallback: try posting WM_PASTE directly to the window
-                System.Diagnostics.Debug.WriteLine("FocusAndSendPasteAsync: trying WM_PASTE fallback");
-                if (TrySendPasteMessage(hWnd))
-                {
-                    return (true, SendInputResult.Succeeded);
-                }
+                System.Diagnostics.Debug.WriteLine(
+                    $"FocusAndSendPasteAsync: SetForegroundWindow returned false for target {hWnd:X}");
                 return (false, SendInputResult.Succeeded);
             }
 
@@ -362,21 +369,14 @@ public sealed class ClipboardService
             {
                 System.Diagnostics.Debug.WriteLine(
                     $"FocusAndSendPasteAsync: focus shifted to {currentForeground:X}, expected {hWnd:X}");
-                // Fallback: try posting WM_PASTE directly
-                System.Diagnostics.Debug.WriteLine("FocusAndSendPasteAsync: trying WM_PASTE fallback");
-                if (TrySendPasteMessage(hWnd))
-                {
-                    return (true, SendInputResult.Succeeded);
-                }
                 return (false, SendInputResult.Succeeded);
             }
-
-            // Also try setting keyboard focus explicitly within the attached thread
-            SetFocus(hWnd);
 
             // Send paste while still attached to the target's input queue.
             // This may improve delivery on some systems.
             var sendResult = SendInputHelper.SendPasteWithResult();
+            System.Diagnostics.Debug.WriteLine(
+                $"FocusAndSendPasteAsync: SendInput success={sendResult.Success} for target {hWnd:X}");
             return (true, sendResult);
         }
         finally
@@ -389,48 +389,39 @@ public sealed class ClipboardService
     }
 
     /// <summary>
-    /// Tries to send WM_PASTE directly to the window. This bypasses the input
-    /// queue and works even when SendInput cannot deliver keystrokes to the
-    /// target window (e.g., focus issues or security restrictions).
+    /// Reads text from the currently focused editor only when it belongs to the
+    /// requested top-level window. This is diagnostic verification, never a
+    /// substitute for a successful keyboard injection.
     /// </summary>
-    private static bool TrySendPasteMessage(IntPtr hWnd)
+    private static bool TryReadFocusedText(IntPtr targetWindow, out string text)
     {
-        if (hWnd == IntPtr.Zero || !IsWindow(hWnd))
-            return false;
-
-        // Many edit controls, including standard Windows Edit controls and
-        // RichEdit, respond to WM_PASTE directly.
-        return PostMessage(hWnd, WM_PASTE, IntPtr.Zero, IntPtr.Zero);
-    }
-
-    private async Task<bool> TryFocusWindowAsync(IntPtr hWnd)
-    {
-        if (GetForegroundWindow() == hWnd)
-            return true;
-
-        // SetForegroundWindow is restricted for background processes; attaching
-        // to the target window's input thread lifts the restriction.
-        var targetThread = GetWindowThreadProcessId(hWnd, out _);
-        var currentThread = GetCurrentThreadId();
-        var attached = targetThread != 0 && targetThread != currentThread &&
-                       AttachThreadInput(currentThread, targetThread, true);
-        bool requested;
+        text = string.Empty;
         try
         {
-            requested = SetForegroundWindow(hWnd);
-        }
-        finally
-        {
-            if (attached)
+            if (GetForegroundWindow() != targetWindow) return false;
+            var focused = AutomationElement.FocusedElement;
+            if (focused == null) return false;
+
+            if (focused.TryGetCurrentPattern(TextPattern.Pattern, out var textPatternObject) &&
+                textPatternObject is TextPattern textPattern)
             {
-                AttachThreadInput(currentThread, targetThread, false);
+                text = textPattern.DocumentRange.GetText(-1);
+                return true;
+            }
+
+            if (focused.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObject) &&
+                valuePatternObject is ValuePattern valuePattern)
+            {
+                text = valuePattern.Current.Value;
+                return true;
             }
         }
+        catch
+        {
+            // Not every editor exposes readable UI Automation text.
+        }
 
-        if (!requested) return false;
-
-        await Task.Delay(Constants.FocusRestoreDelayMs);
-        return GetForegroundWindow() == hWnd;
+        return false;
     }
 
     /// <summary>

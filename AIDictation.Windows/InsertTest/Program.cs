@@ -151,6 +151,8 @@ class Program
             Log("[4] Reading Notepad content...");
             var content = ReadNotepadText(notepad);
             Log($"  Content: '{content}'");
+            var clipboardContent = ReadClipboardText();
+            Log($"  Clipboard contains test text: {clipboardContent.Contains(testText)}");
 
             TakeScreenshot("04-final");
 
@@ -158,7 +160,11 @@ class Program
             Log("");
             Log("[5] Verdict:");
             var textFound = content.Contains(testText);
+            var failedPastePreservedClipboard = pasteResult.Success ||
+                pasteResult.FailureReason == PasteFailureReason.ClipboardLocked ||
+                clipboardContent.Contains(testText);
             Log($"  Test text found in Notepad: {textFound}");
+            Log($"  Failed paste preserved clipboard: {failedPastePreservedClipboard}");
 
             // Get session info for results
             uint currentSessionId, currentConsoleSession;
@@ -166,9 +172,9 @@ class Program
             currentConsoleSession = WTSGetActiveConsoleSessionId();
 
             // Write results file
-            WriteResults(testText, content, pasteResult, currentSessionId, currentConsoleSession);
+            WriteResults(testText, content, clipboardContent, pasteResult, currentSessionId, currentConsoleSession);
 
-            if (textFound)
+            if (textFound && failedPastePreservedClipboard)
             {
                 Log("");
                 Log("SUCCESS: Real app insert path works on GitHub Windows VM!");
@@ -254,6 +260,19 @@ class Program
         return "";
     }
 
+    static string ReadClipboardText()
+    {
+        try
+        {
+            return Clipboard.ContainsText() ? Clipboard.GetText() : "";
+        }
+        catch (Exception ex)
+        {
+            Log($"  Clipboard read error: {ex.Message}");
+            return "";
+        }
+    }
+
     static void TakeScreenshot(string name)
     {
         // Note: Screenshots disabled to avoid WPF/WinForms conflicts.
@@ -261,7 +280,7 @@ class Program
         Log($"  [Checkpoint: {name}]");
     }
 
-    static void WriteResults(string testText, string notepadContent, PasteResult result,
+    static void WriteResults(string testText, string notepadContent, string clipboardContent, PasteResult result,
                              uint sessionId, uint consoleSession)
     {
         var lines = new[]
@@ -277,6 +296,7 @@ class Program
             "[Test]",
             $"  Test text: {testText}",
             $"  Notepad content: '{notepadContent}'",
+            $"  Clipboard contains test text: {clipboardContent.Contains(testText)}",
             "",
             "[ClipboardService.PasteTextWithResultAsync]",
             $"  Success: {result.Success}",
@@ -284,7 +304,8 @@ class Program
             $"  ErrorMessage: {result.ErrorMessage ?? "(none)"}",
             "",
             "=== VERDICT ===",
-            notepadContent.Contains(testText)
+            notepadContent.Contains(testText) &&
+                (result.Success || result.FailureReason == PasteFailureReason.ClipboardLocked || clipboardContent.Contains(testText))
                 ? "SUCCESS: Real app insert path works."
                 : "FAILURE: Real app insert path did NOT deliver text."
         };
