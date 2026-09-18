@@ -929,8 +929,7 @@ public partial class App : Application
                     : "Transcript ready to paste",
                 reason == PasteFailureReason.ClipboardLocked
                     ? "The clipboard was unavailable. Copy your transcript from History."
-                    : "Your transcript is ready to paste. Press Ctrl+V to paste.",
-                NotificationIcon.Info);
+                    : "Your transcript is ready to paste. Press Ctrl+V to paste.");
         }
         catch (Exception ex)
         {
