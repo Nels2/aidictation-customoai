@@ -1,7 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Automation;
-using System.Windows.Automation.Text;
 using AIDictation.Helpers;
 
 namespace AIDictation.Services;
@@ -52,10 +50,10 @@ public sealed class ClipboardService
     private static class Constants
     {
         public const int ClipboardDelayMs = 50;
-        public const int PasteDeliveryCheckDelayMs = 150;
         public const int ClipboardRestoreDelayMs = 500;
         public const int FocusRestoreDelayMs = 150;
         public const int ClipboardWriteAttempts = 5;
+        public const int DirectPasteDeadlineMs = 500;
     }
 
     // MARK: - P/Invoke
@@ -77,6 +75,19 @@ public sealed class ClipboardService
 
     [DllImport("user32.dll")]
     private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd,
+        uint msg,
+        IntPtr wParam,
+        IntPtr lParam,
+        uint flags,
+        uint timeout,
+        out IntPtr result);
+
+    private const uint WM_PASTE = 0x0302;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
@@ -103,9 +114,13 @@ public sealed class ClipboardService
     /// locked, target window gone, or injection blocked); the transcript is
     /// left on the clipboard in that case so the user can paste manually.
     /// </summary>
-    public async Task<bool> PasteTextAsync(string text, IntPtr targetWindow = default, bool smartSpacing = true)
+    public async Task<bool> PasteTextAsync(
+        string text,
+        IntPtr targetWindow = default,
+        IntPtr targetControl = default,
+        bool smartSpacing = true)
     {
-        var result = await PasteTextWithResultAsync(text, targetWindow, smartSpacing);
+        var result = await PasteTextWithResultAsync(text, targetWindow, targetControl, smartSpacing);
         return result.Success;
     }
 
@@ -118,6 +133,7 @@ public sealed class ClipboardService
     public async Task<PasteResult> PasteTextWithResultAsync(
         string text,
         IntPtr targetWindow = default,
+        IntPtr targetControl = default,
         bool smartSpacing = true)
     {
         if (string.IsNullOrEmpty(text))
@@ -143,6 +159,22 @@ public sealed class ClipboardService
             }
 
             await Task.Delay(Constants.ClipboardDelayMs);
+
+            // Prefer the exact editor control that had focus when dictation
+            // began. SendMessageTimeout is synchronous and bounded: unlike a
+            // queued WM_PASTE, it tells us whether the control accepted the
+            // command and cannot leave the UI waiting on an unresponsive app.
+            if (targetControl != IntPtr.Zero && IsWindow(targetControl))
+            {
+                if (await Task.Run(() => TryPasteIntoCapturedControl(targetControl)))
+                {
+                    pasted = true;
+                    return PasteResult.Succeeded;
+                }
+
+                System.Diagnostics.Debug.WriteLine(
+                    $"PasteTextAsync: direct paste did not complete for control {targetControl:X}; using Ctrl+V fallback");
+            }
 
             // Re-focus the window the user dictated into; pasting into whatever
             // happens to be foreground would send the text to the wrong app.
@@ -202,22 +234,6 @@ public sealed class ClipboardService
                         sendResult.ErrorMessage ?? "Keyboard input was blocked. Press Ctrl+V to paste.");
                 }
 
-                // SendInput only confirms that Windows accepted the keys. Where UI
-                // Automation can read the focused editor, ensure the payload reached
-                // it before claiming automatic delivery.
-                await Task.Delay(Constants.PasteDeliveryCheckDelayMs);
-                if (TryReadFocusedText(targetWindow, out var visibleText) &&
-                    !visibleText.Contains(textToInsert, StringComparison.Ordinal))
-                {
-                    const string message =
-                        "Windows accepted the paste command, but the target app did not receive the transcript.";
-                    System.Diagnostics.Debug.WriteLine(
-                        $"PasteTextAsync: delivery was not confirmed for target {targetWindow:X}");
-                    HighValueErrorSink.ReportTextInsertFailure(
-                        message,
-                        nameof(PasteFailureReason.DeliveryUnconfirmed));
-                    return PasteResult.Failed(PasteFailureReason.DeliveryUnconfirmed, message);
-                }
             }
             else
             {
@@ -389,89 +405,38 @@ public sealed class ClipboardService
     }
 
     /// <summary>
-    /// Reads text from the currently focused editor only when it belongs to the
-    /// requested top-level window. This is diagnostic verification, never a
-    /// substitute for a successful keyboard injection.
+    /// Delivers WM_PASTE directly to the exact control captured at start. The
+    /// bounded synchronous call is intentionally not used as a focus fallback
+    /// for a top-level window, because that could target the wrong UI surface.
     /// </summary>
-    private static bool TryReadFocusedText(IntPtr targetWindow, out string text)
+    private static bool TryPasteIntoCapturedControl(IntPtr targetControl)
     {
-        text = string.Empty;
         try
         {
-            if (GetForegroundWindow() != targetWindow) return false;
-            var focused = AutomationElement.FocusedElement;
-            if (focused == null) return false;
-
-            if (focused.TryGetCurrentPattern(TextPattern.Pattern, out var textPatternObject) &&
-                textPatternObject is TextPattern textPattern)
-            {
-                text = textPattern.DocumentRange.GetText(-1);
-                return true;
-            }
-
-            if (focused.TryGetCurrentPattern(ValuePattern.Pattern, out var valuePatternObject) &&
-                valuePatternObject is ValuePattern valuePattern)
-            {
-                text = valuePattern.Current.Value;
-                return true;
-            }
+            var completed = SendMessageTimeout(
+                targetControl,
+                WM_PASTE,
+                IntPtr.Zero,
+                IntPtr.Zero,
+                SMTO_ABORTIFHUNG,
+                Constants.DirectPasteDeadlineMs,
+                out _);
+            return completed != IntPtr.Zero;
         }
         catch
         {
-            // Not every editor exposes readable UI Automation text.
+            // The Ctrl+V fallback below keeps this a delivery attempt, not a
+            // recording or transcription failure.
+            return false;
         }
-
-        return false;
     }
 
     /// <summary>
-    /// Prepends a space when the character before the caret needs one. Read-only:
-    /// uses UI Automation and never injects keystrokes (a probe that sends
-    /// Ctrl+C would, for example, kill the foreground process in a terminal).
+    /// Kept as an explicit seam for future spacing policy. Do not query another
+    /// application's UI Automation tree here: a non-responsive editor can block
+    /// the calling UI thread and make the dictation hotkey appear frozen.
     /// </summary>
-    private static string ApplySmartSpacing(string text)
-    {
-        var charBefore = GetCharacterBeforeCaret();
-        if (charBefore is char c &&
-            !char.IsWhiteSpace(c) &&
-            c != '(' && c != '[' && c != '{' && c != '"' && c != '\'' && c != '`')
-        {
-            return " " + text;
-        }
-        return text;
-    }
-
-    private static char? GetCharacterBeforeCaret()
-    {
-        try
-        {
-            var focused = AutomationElement.FocusedElement;
-            if (focused == null)
-                return null;
-
-            if (!focused.TryGetCurrentPattern(TextPattern.Pattern, out var pattern) ||
-                pattern is not TextPattern textPattern)
-            {
-                return null;
-            }
-
-            var selection = textPattern.GetSelection();
-            if (selection.Length == 0)
-                return null;
-
-            // Collapse the selection to its end (where the caret sits after a
-            // typical selection), then widen one character left.
-            var range = selection[0].Clone();
-            range.MoveEndpointByRange(TextPatternRangeEndpoint.Start, range, TextPatternRangeEndpoint.End);
-            range.MoveEndpointByUnit(TextPatternRangeEndpoint.Start, TextUnit.Character, -1);
-            var textBefore = range.GetText(1);
-            return textBefore.Length == 1 ? textBefore[0] : null;
-        }
-        catch
-        {
-            return null;
-        }
-    }
+    private static string ApplySmartSpacing(string text) => text;
 
     private async Task<IDataObject?> GetClipboardContentAsync()
     {

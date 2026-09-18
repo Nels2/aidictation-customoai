@@ -45,6 +45,7 @@ public partial class App : Application
     private DateTime _recordingStartedAt;
     private bool _mutedSystemAudioForRecording;
     private IntPtr _dictationTargetWindow;
+    private IntPtr _dictationTargetControl;
     private Task<CaptureStartOutcome>? _captureStartTask;
     private bool _isValidationOnly;
     private bool _servicesReady;
@@ -786,7 +787,9 @@ public partial class App : Application
         // Remember where the user is dictating so the paste cannot land in a
         // window focused later (e.g. after Alt-Tab during transcription).
         _dictationTargetWindow = Helpers.ForegroundWindowHelper.GetForegroundWindowHandle();
-        Debug.WriteLine($"Dictation target captured: {_dictationTargetWindow:X}");
+        _dictationTargetControl = Helpers.ForegroundWindowHelper.GetFocusedControlHandle(_dictationTargetWindow);
+        Debug.WriteLine(
+            $"Dictation target captured: window={_dictationTargetWindow:X}, control={_dictationTargetControl:X}");
         _recordingStartedAt = DateTime.Now;
         _captureStartTask = StartRecordingCoreAsync(isCommandMode);
     }
@@ -876,6 +879,7 @@ public partial class App : Application
     private async Task StopRecordingAsync()
     {
         var dictationTargetWindow = _dictationTargetWindow;
+        var dictationTargetControl = _dictationTargetControl;
         var pendingStart = _captureStartTask;
         if (pendingStart != null)
         {
@@ -892,7 +896,8 @@ public partial class App : Application
 
             var pasteResult = await ClipboardService.Instance.PasteTextWithResultAsync(
                 result.Text,
-                dictationTargetWindow);
+                dictationTargetWindow,
+                dictationTargetControl);
 
             if (!pasteResult.Success)
             {
